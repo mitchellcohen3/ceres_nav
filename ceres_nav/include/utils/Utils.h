@@ -4,6 +4,8 @@
 #include <math.h>
 #include <Eigen/Dense>
 
+#include <ceres/ceres.h>
+
 double roundTo(double value, double precision);
 
 double roundStamp(double value);
@@ -24,5 +26,9 @@ void writeVectorToFile(const std::string &filename, const Eigen::VectorXd &vecto
  */
 Eigen::VectorXd flattenMatrix(const Eigen::MatrixXd &matrix);
 
+/**
+ * @brief Creates a new file at the specified path.
+ * @param filename The path to the file to create
+ */
 void createNewFile(const std::string &filename);
 

@@ -26,7 +26,7 @@ struct ProblemKeys {
   std::string bias_state_key = "gyro_bias";
 };
 
-void addIMUState(ceres_swf::FactorGraph &graph, const IMUState &imu_state,
+void addIMUState(ceres_nav::FactorGraph &graph, const IMUState &imu_state,
                  const LieDirection direction,
                  ProblemKeys keys = ProblemKeys()) {
   // Create a new ExtendedPoseParameterBlock for the IMU state
@@ -39,7 +39,7 @@ void addIMUState(ceres_swf::FactorGraph &graph, const IMUState &imu_state,
   graph.addState(keys.bias_state_key, imu_state.timestamp(), bias_block);
 };
 
-void addPriorFactor(ceres_swf::FactorGraph &graph,
+void addPriorFactor(ceres_nav::FactorGraph &graph,
                     const IMUState prior_imu_state,
                     const Eigen::Matrix<double, 15, 15> &prior_covariance,
                     LieDirection direction, ProblemKeys keys) {
@@ -53,7 +53,7 @@ void addPriorFactor(ceres_swf::FactorGraph &graph,
   graph.addFactor(state_ids, factor, prior_imu_state.timestamp());
 }
 
-void addPreintegrationFactor(ceres_swf::FactorGraph &graph,
+void addPreintegrationFactor(ceres_nav::FactorGraph &graph,
                              const IMUIncrement &imu_increment,
                              LieDirection &direction,
                              ProblemKeys keys = ProblemKeys()) {
@@ -71,7 +71,7 @@ void addPreintegrationFactor(ceres_swf::FactorGraph &graph,
 /**
  * @brief Adds a GPS factor to the graph
  */
-void addGPSFactor(ceres_swf::FactorGraph &graph, const GPSMessage &gps_message,
+void addGPSFactor(ceres_nav::FactorGraph &graph, const GPSMessage &gps_message,
                   const LieDirection &direction,
                   const Eigen::Matrix3d &covariance,
                   ProblemKeys keys = ProblemKeys()) {
@@ -84,7 +84,7 @@ void addGPSFactor(ceres_swf::FactorGraph &graph, const GPSMessage &gps_message,
   graph.addFactor(state_ids, factor, gps_message.timestamp);
 }
 
-IMUState getIMUState(ceres_swf::FactorGraph &graph, double timestamp,
+IMUState getIMUState(ceres_nav::FactorGraph &graph, double timestamp,
                      ProblemKeys keys = ProblemKeys()) {
   std::shared_ptr<ExtendedPoseParameterBlock> nav_state =
       graph.getStates().getState<ExtendedPoseParameterBlock>(keys.nav_state_key,
@@ -102,7 +102,7 @@ IMUState getIMUState(ceres_swf::FactorGraph &graph, double timestamp,
 }
 
 Eigen::Matrix<double, 15, 15>
-computeIMUCovariance(ceres_swf::FactorGraph &graph, double timestamp,
+computeIMUCovariance(ceres_nav::FactorGraph &graph, double timestamp,
                      ProblemKeys keys) {
   bool success_ext_pose =
       graph.computeCovariance(keys.nav_state_key, timestamp);
@@ -124,6 +124,15 @@ computeIMUCovariance(ceres_swf::FactorGraph &graph, double timestamp,
           .getState<ParameterBlock<6>>(keys.bias_state_key, timestamp)
           ->getCovariance();
   return covariance;
+}
+
+void marginalizeIMUState(ceres_nav::FactorGraph &graph, double timestamp_marg,
+                         ProblemKeys keys) {
+  std::vector<StateID> state_ids_marg = {
+      StateID(keys.nav_state_key, timestamp_marg),
+      StateID(keys.bias_state_key, timestamp_marg)};
+    
+  graph.marginalizeStates(state_ids_marg);
 }
 
 } // namespace factor_graph_utils

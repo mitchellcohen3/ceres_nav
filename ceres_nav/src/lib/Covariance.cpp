@@ -4,7 +4,7 @@
 #include <thread>
 #include <vector>
 
-namespace ceres_swf {
+namespace ceres_nav {
 bool calculateCovariance(ceres::Problem &graph, StateCollection &states,
                          const std::string &key, double timestamp) {
   // Create a covariance object
@@ -51,4 +51,4 @@ bool calculateCovariance(ceres::Problem &graph, StateCollection &states,
 
   return true;
 }
-}; // namespace ceres_swf
+}; // namespace ceres_nav

@@ -49,7 +49,7 @@ TEST_CASE("Test AbsolutePositionFactor Jacobians") {
     Eigen::VectorXd residuals(factor->num_residuals());
     std::vector<Eigen::MatrixXd> jacobians;
 
-    bool success = ceres_swf::evaluateCostFunction(factor, parameter_blocks,
+    bool success = ceres_nav::evaluateCostFunction(factor, parameter_blocks,
                                                    residuals, jacobians);
     REQUIRE(success);
     // Check the residuals
@@ -58,14 +58,14 @@ TEST_CASE("Test AbsolutePositionFactor Jacobians") {
 
     // Try numerically evaluating the Jacobians
     std::vector<Eigen::MatrixXd> numerical_jacobians =
-        ceres_swf::computeNumericalJacobians(
+        ceres_nav::computeNumericalJacobians(
             factor, parameter_blocks, 1e-6,
-            ceres_swf::NumericalJacobianMethod::CENTRAL);
+            ceres_nav::NumericalJacobianMethod::CENTRAL);
     REQUIRE(numerical_jacobians.size() == jacobians.size());
 
     // Check the Jacobians numerically
-    bool is_correct = ceres_swf::checkNumericalJacobians(
-        factor, parameter_blocks, ceres_swf::NumericalJacobianMethod::CENTRAL,
+    bool is_correct = ceres_nav::checkNumericalJacobians(
+        factor, parameter_blocks, ceres_nav::NumericalJacobianMethod::CENTRAL,
         1e-6, false);
     REQUIRE(is_correct);
   }
@@ -102,8 +102,8 @@ TEST_CASE("Test RelativeLandmarkFactorJacobians") {
     parameter_blocks.push_back(landmark_block);
 
     // Check the Jacobians numerically
-    bool is_correct = ceres_swf::checkNumericalJacobians(
-        factor, parameter_blocks, ceres_swf::NumericalJacobianMethod::CENTRAL,
+    bool is_correct = ceres_nav::checkNumericalJacobians(
+        factor, parameter_blocks, ceres_nav::NumericalJacobianMethod::CENTRAL,
         1e-6, false);
     REQUIRE(is_correct);
   }
@@ -141,8 +141,8 @@ TEST_CASE("Test RelativePoseFactor Jacobians") {
     parameter_blocks.push_back(pose_block_j);
 
     // Check the Jacobians numerically
-    bool is_correct = ceres_swf::checkNumericalJacobians(
-        factor, parameter_blocks, ceres_swf::NumericalJacobianMethod::CENTRAL,
+    bool is_correct = ceres_nav::checkNumericalJacobians(
+        factor, parameter_blocks, ceres_nav::NumericalJacobianMethod::CENTRAL,
         1e-6, false);    
     REQUIRE(is_correct);
   }

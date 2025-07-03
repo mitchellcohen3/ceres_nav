@@ -21,18 +21,10 @@ Eigen::Vector3d SO3::vee(const Eigen::Matrix3d &element_so3) {
 }
 
 Eigen::Matrix<double, 9, 1> SO3::flatten(const Eigen::Matrix3d C) {
-  Eigen::Matrix<double, 9, 1> vec = Eigen::Matrix<double, 9, 1>::Zero();
-  for (int lv2 = 0; lv2 < 3; lv2++) {
-    vec.block<3, 1>(lv2 * 3, 0) = C.block<3, 1>(0, lv2);
-  }
-  return vec;
+  return Eigen::Map<const Eigen::Matrix<double, 9, 1>>(C.data());
 }
 Eigen::Matrix3d SO3::unflatten(const Eigen::Matrix<double, 9, 1> vec_C) {
-  Eigen::Matrix3d C = Eigen::Matrix3d::Zero();
-  for (int lv2 = 0; lv2 < 3; lv2++) {
-    C.block<3, 1>(0, lv2) = vec_C.block<3, 1>(lv2 * 3, 0);
-  }
-  return C;
+  return Eigen::Map<const Eigen::Matrix3d>(vec_C.data());
 }
 
 Eigen::Matrix3d SO3::expMap(const Eigen::Vector3d &phi) {
@@ -176,9 +168,8 @@ Eigen::Matrix3d SO3::computeJRightInv(const Eigen::Vector3d &phi) {
 }
 
 Eigen::Vector3d SO3::toEuler(const Eigen::Matrix3d &C) {
-  // double pitch = atan2(-C(2, 0), sqrt(C(0, 0) * C(0, 0) + C(1, 0) * C(1, 0)));
-  // double roll;
-  // double yaw;
+  // double pitch = atan2(-C(2, 0), sqrt(C(0, 0) * C(0, 0) + C(1, 0) * C(1,
+  // 0))); double roll; double yaw;
 
   // if (isDoubleWithinTolerance(pitch, 0.0, 1e-5)) {
   //   yaw = 0.0;

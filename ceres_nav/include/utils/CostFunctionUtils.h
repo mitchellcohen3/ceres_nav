@@ -6,7 +6,7 @@
 
 #include "lib/ParameterBlockBase.h"
 
-namespace ceres_swf {
+namespace ceres_nav {
 
 /**
  * @brief Utility functions for ceres::CostFunction evaluation and Jacobian
@@ -40,4 +40,4 @@ bool checkNumericalJacobians(
     const std::vector<std::shared_ptr<ParameterBlockBase>> &parameter_blocks,
     const NumericalJacobianMethod &method = NumericalJacobianMethod::CENTRAL,
     double delta = 1e-6, bool print_jacobians = false);
-} // namespace ceres_swf
+} // namespace ceres_nav

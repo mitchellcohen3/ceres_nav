@@ -56,7 +56,7 @@ TEST_CASE("Test FactorGraph") {
 }
 
 // TEST_CASE("Test Factor Graph") {
-//   ceres_swf::FactorGraph factor_graph;
+//   ceres_nav::FactorGraph factor_graph;
 //   factor_graph.addState(
 //       "x", 0.0,
 //       std::make_shared<ParameterBlock<3, 3>>(Eigen::Vector3d(1.0, 2.0, 3.0)));

@@ -52,7 +52,7 @@ void StateCollection::removeState(const std::string &key, double timestamp) {
   }
 }
 
-bool StateCollection::getFirstStamp(const std::string &key,
+bool StateCollection::getOldestStamp(const std::string &key,
                                     double &timestamp) const {
   auto it = states_.find(key);
   if (it != states_.end() && !it->second.empty()) {
@@ -63,7 +63,7 @@ bool StateCollection::getFirstStamp(const std::string &key,
   return false;
 }
 
-bool StateCollection::getLastStamp(const std::string &key,
+bool StateCollection::getLatestStamp(const std::string &key,
                                    double &timestamp) const {
   auto it = states_.find(key);
   if (it != states_.end() && !it->second.empty()) {

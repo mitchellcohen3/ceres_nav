@@ -13,7 +13,6 @@
  * @brief Holds a collection of states in time, accessible by a string key and a
  * timestamp.
  */
-// using StatePtr = std::shared_ptr<ParameterBlockBase>;
 
 class StateCollection {
 public:
@@ -138,8 +137,8 @@ public:
   /**
    * @brief Get the first timestamp for a given key
    */
-  bool getFirstStamp(const std::string &key, double &stamp) const;
-  bool getLastStamp(const std::string &key, double &stamp) const;
+  bool getOldestStamp(const std::string &key, double &stamp) const;
+  bool getLatestStamp(const std::string &key, double &stamp) const;
   bool getTimesForState(const std::string &key,
                         std::vector<double> &stamps) const;
 
@@ -148,7 +147,7 @@ protected:
   double timestamp_precision_ = default_timestamp_precision;
 
   int64_t timestampToKey(double timestamp) const {
-    return static_cast<int64_t>(timestamp / timestamp_precision_);
+    return static_cast<int64_t>(std::round(timestamp / timestamp_precision_));
   }
 
   double keyToTimestamp(int64_t key) const {
