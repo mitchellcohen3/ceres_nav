@@ -52,6 +52,9 @@ public:
   // Remove states from the problem
   void removeState(const std::string &name, double timestamp);
 
+  // Marginalize states from the problem
+  bool marginalizeStates(const std::vector<StateID> &state_ids);
+
   // Get the cost functions for a set of residual blocks
   bool getCostFunctionPointersForResidualBlocks(
       const std::vector<ceres::ResidualBlockId> &residual_ids,
@@ -74,7 +77,17 @@ public:
    * a particular timestamp.
    */
   bool computeCovariance(const std::string &name, double timestamp);
-  
+
+  /**
+   * @brief Gets the marginalization information for a set of states.
+   */
+  void getMarginalizationInfo(const std::vector<double *> state_ptrs_m,
+                              std::vector<double *> &connected_state_ptrs,
+                              std::vector<ceres::ResidualBlockId> &factors_m,
+                              std::vector<int> &state_sizes,
+                              std::vector<int> &local_sizes,
+                              std::vector<StateID> &state_ids) const;
+
 protected:
   // The collection of states
   StateCollection states_;

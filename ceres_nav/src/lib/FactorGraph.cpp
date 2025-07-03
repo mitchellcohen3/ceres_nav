@@ -1,10 +1,11 @@
 #include "lib/FactorGraph.h"
 #include "lib/Covariance.h"
 
+#include <glog/logging.h>
+
 namespace ceres_swf {
 
 FactorGraph::FactorGraph() : problem_(default_problem_options_) {}
-
 void FactorGraph::addState(const std::string &name, double timestamp,
                            std::shared_ptr<ParameterBlockBase> state) {
   states_.addState(name, timestamp, state);
@@ -12,9 +13,6 @@ void FactorGraph::addState(const std::string &name, double timestamp,
   // Get the mean pointer
   double *estimate_ptr = state->estimatePointer();
   int size = state->dimension();
-
-  // Check to ensure that the size actually matches
-  //   int size_2 = static_cast<int>(state->getEstimate().size());
 
   ceres::LocalParameterization *local_parameterization_ptr =
       state->getLocalParameterizationPointer();
@@ -74,6 +72,8 @@ bool FactorGraph::getStatePointers(const std::vector<StateID> &state_ids,
   // Get the pointers to the states
   for (auto &state_id : state_ids) {
     if (!states_.hasState(state_id.ID, state_id.timestamp)) {
+      LOG(ERROR) << "State not found in collection: " << state_id.ID
+                 << " at timestamp: " << state_id.timestamp;
       return false;
     }
 
@@ -81,6 +81,8 @@ bool FactorGraph::getStatePointers(const std::vector<StateID> &state_ids,
     double *state_ptr =
         states_.getState(state_id.ID, state_id.timestamp)->estimatePointer();
     if (!problem_.HasParameterBlock(state_ptr)) {
+      LOG(ERROR) << "State not found in Ceres problem: " << state_id.ID
+                 << " at timestamp: " << state_id.timestamp;
       return false;
     }
     state_ptrs.push_back(state_ptr);
@@ -161,10 +163,34 @@ bool FactorGraph::computeCovariance(const std::string &key, double timestamp) {
   return success;
 }
 
-bool getMarkovBlanketInfo(const std::vector<StateID> &States_m,
-                          std::vector<double *> &ConnectedStatePtrs,
-                          std::vector<ceres::ResidualBlockId> &Factors_m,
-                          std::vector<ceres::ResidualBlockId> &Factors_r,
+bool FactorGraph::marginalizeStates(const std::vector<StateID> &states_m) {
+  if (states_m.empty()) {
+    LOG(ERROR) << "No states to marginalize.";
+    return false;
+  }
+
+  std::vector<double *> state_ptrs_m;
+  if (!getStatePointers(states_m, state_ptrs_m)){
+    return false;
+  }
+  int marginal_size = 0;
+  for (const double *state_ptr : state_ptrs_m) {
+    marginal_size += problem_.ParameterBlockLocalSize(state_ptr);
+  }
+
+  // Get the connected states
+  std::vector<double *> connected_state_ptrs;
+  std::vector<ceres::ResidualBlockId> connected_factors;
+  std::vector<int> global_size;
+  std::vector<int> local_size;
+  std::vector<StateID> state_ids;
+  // std::vecot
+}
+
+bool getMarkovBlanketInfo(const std::vector<StateID> &states_m,
+                          std::vector<double *> &connected_state_ptrs,
+                          std::vector<ceres::ResidualBlockId> &factors_m,
+                          std::vector<ceres::ResidualBlockId> &factors_r,
                           std::vector<StateID> &ConnectedStateIDs);
 
 } // namespace ceres_swf

@@ -13,7 +13,6 @@
  * @brief Holds a collection of states in time, accessible by a string key and a
  * timestamp.
  */
-// using StatePtr = std::shared_ptr<ParameterBlockBase>;
 
 class StateCollection {
 public:

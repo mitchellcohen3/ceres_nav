@@ -126,4 +126,13 @@ computeIMUCovariance(ceres_swf::FactorGraph &graph, double timestamp,
   return covariance;
 }
 
+void marginalizeIMUState(ceres_swf::FactorGraph &graph, double timestamp_marg,
+                         ProblemKeys keys) {
+  std::vector<StateID> state_ids_marg = {
+      StateID(keys.nav_state_key, timestamp_marg),
+      StateID(keys.bias_state_key, timestamp_marg)};
+  
+  graph.marginalizeStates(state_ids_marg);
+}
+
 } // namespace factor_graph_utils

@@ -30,9 +30,9 @@ class InertialNavigationExampleConfig:
     gyro_random_walk: float = 0.0001
     accel_random_walk: float = 0.0001
     gps_white_noise: float = 0.25
-    imu_freq: int = 200
+    imu_freq: int = 100
     gps_freq: int = 10
-    t_end: float = 50.0
+    t_end: float = 5.0
     noise_active: bool = True
     gravity_mag = 9.80665
     lie_direction: str = "left"
@@ -45,6 +45,8 @@ class InertialNavigationExampleConfig:
     # Filenames for the output IMU states
     init_imu_fname: str = "init_imu_states.txt"
     est_imu_fname: str = "optimized_imu_states.txt"
+
+
 
 
 def load_imu_states_from_asl(file_path: str) -> typing.List[IMUState]:
@@ -201,10 +203,11 @@ def generate_and_save_data(config: InertialNavigationExampleConfig, save_dir: st
     return output_fpaths
 
 
-def run_sliding_window_filter(
+def run_gps_imu_fusion(
     config: InertialNavigationExampleConfig,
     executable_path: str,
     data_fpaths: typing.Dict[str, str],
+    estimator_type: str = "full_batch"
 ):
     """Runs the GPS/IMU sliding window filter example."""
     # Run example
@@ -245,6 +248,8 @@ def run_sliding_window_filter(
         str(config.gravity_mag),
         "--output_dir",
         config.output_dir,
+        "--estimator_type",
+        estimator_type,
     ]
 
     cmd.extend(args)
@@ -259,16 +264,12 @@ def run_sliding_window_filter(
         print(f"File not found: {e}")
 
 
-def evaluate_imu_states(est_file: str, gt_file: str, init_file: str, cov_file: str):
+def evaluate_imu_states(est_file: str, gt_file: str, cov_file: str):
     """Evaluates the IMU states against the ground truth."""
     gt_states = load_imu_states_from_asl(gt_file)
     est_states = load_imu_states_from_asl(est_file)
-    init_states = load_imu_states_from_asl(init_file)
     covariances, cov_stamps = load_covariances_from_file(cov_file, 15)
 
-    if len(est_states) != len(init_states):
-        print("Error: Estimated states and initial states have different lengths.")
-        return
     if len(est_states) != len(covariances):
         print("Error: Estimated states and covariances have different lengths.")
         print("Estimated states length:", len(est_states))
@@ -287,7 +288,6 @@ def evaluate_imu_states(est_file: str, gt_file: str, init_file: str, cov_file: s
     for match in matches:
         gt_list.append(gt_states[match[1]])
         est_list.append(est_states[match[0]])
-        init_list.append(init_states[match[0]])
         cov_list.append(covariances[match[0]])
 
     # Postprocess the results and plot
@@ -302,7 +302,6 @@ def evaluate_imu_states(est_file: str, gt_file: str, init_file: str, cov_file: s
     # Plot the poses on a graph
     fig, ax = plot_poses(est_list, line_color="tab:blue", label="Estimated", step=None)
     plot_poses(gt_list, ax=ax, line_color="tab:red", label="Ground Truth", step=None)
-    plot_poses(init_list, ax=ax, line_color="tab:green", label="Deadreckoned", step=None)
     ax.set_title("IMU State Trajectories")
     ax.set_xlabel("x (m)")
     ax.set_ylabel("y (m)")
@@ -314,6 +313,7 @@ def evaluate_imu_states(est_file: str, gt_file: str, init_file: str, cov_file: s
 
 
 if __name__ == "__main__":
+    estimator_type = "sliding_window"  # or "sliding_window"
     save_dir = os.path.join(cur_dir, "gps_imu_fusion_example")
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
@@ -322,10 +322,9 @@ if __name__ == "__main__":
     data_fpaths = generate_and_save_data(config, save_dir)
 
     # Run the sliding window filter example!
-    executable_path = os.path.join(cur_dir, "../../build/examples/gps_imu_batch")
-    run_sliding_window_filter(config, executable_path, data_fpaths)
+    executable_path = os.path.join(cur_dir, "../../build/examples/gps_imu_example")
+    run_gps_imu_fusion(config, executable_path, data_fpaths, estimator_type)
 
     est_file = os.path.join(save_dir, "optimized_imu_states.txt")
-    init_file = os.path.join(save_dir, "init_imu_states.txt")
     cov_file = os.path.join(save_dir, "covariances.txt")
-    evaluate_imu_states(est_file, data_fpaths["ground_truth"], init_file, cov_file)
+    evaluate_imu_states(est_file, data_fpaths["ground_truth"], cov_file)
