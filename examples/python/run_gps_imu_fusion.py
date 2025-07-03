@@ -30,9 +30,9 @@ class InertialNavigationExampleConfig:
     gyro_random_walk: float = 0.0001
     accel_random_walk: float = 0.0001
     gps_white_noise: float = 0.25
-    imu_freq: int = 100
+    imu_freq: int = 500.0
     gps_freq: int = 10
-    t_end: float = 20.0
+    t_end: float = 50.0
     noise_active: bool = True
     gravity_mag = 9.80665
     lie_direction: str = "left"
@@ -310,7 +310,7 @@ def evaluate_imu_states(est_file: str, gt_file: str, cov_file: str):
 
 
 if __name__ == "__main__":
-    estimator_type = "full_batch"  # full_batch or sliding_window
+    estimator_type = "sliding_window"  # full_batch or sliding_window
     save_dir = os.path.join(cur_dir, "gps_imu_fusion_example")
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)

@@ -30,6 +30,6 @@
 *.exe
 *.out
 *.app
-ceres_nav/build/*
+build/*
 .venv
 .vscode
