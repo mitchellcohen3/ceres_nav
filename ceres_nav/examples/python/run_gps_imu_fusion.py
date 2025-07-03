@@ -32,7 +32,7 @@ class InertialNavigationExampleConfig:
     gps_white_noise: float = 0.25
     imu_freq: int = 100
     gps_freq: int = 10
-    t_end: float = 5.0
+    t_end: float = 20.0
     noise_active: bool = True
     gravity_mag = 9.80665
     lie_direction: str = "left"
@@ -45,9 +45,6 @@ class InertialNavigationExampleConfig:
     # Filenames for the output IMU states
     init_imu_fname: str = "init_imu_states.txt"
     est_imu_fname: str = "optimized_imu_states.txt"
-
-
-
 
 def load_imu_states_from_asl(file_path: str) -> typing.List[IMUState]:
     """Loads IMU states from a text file in the ASL format."""
@@ -313,7 +310,7 @@ def evaluate_imu_states(est_file: str, gt_file: str, cov_file: str):
 
 
 if __name__ == "__main__":
-    estimator_type = "sliding_window"  # or "sliding_window"
+    estimator_type = "full_batch"  # full_batch or sliding_window
     save_dir = os.path.join(cur_dir, "gps_imu_fusion_example")
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)

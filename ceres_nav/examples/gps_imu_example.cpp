@@ -78,7 +78,7 @@ void runSlidingWindowEstimator(
   options.trust_region_strategy_type = ceres::DOGLEG;
 
   // Create the factor graph and problem keys
-  ceres_swf::FactorGraph graph;
+  ceres_nav::FactorGraph graph;
   factor_graph_utils::ProblemKeys keys;
 
   // Add the first IMU state to the graph and add a prior factor
@@ -98,6 +98,7 @@ void runSlidingWindowEstimator(
 
   // Main loop
   size_t imu_idx = 0;
+  LOG(INFO) << "Running sliding window filter...";
   for (size_t gps_index = 1; gps_index < gps_data.size(); gps_index++) {
     double cur_gps_timestamp = gps_data[gps_index].timestamp;
 
@@ -121,24 +122,45 @@ void runSlidingWindowEstimator(
                                                 lie_direction, keys);
     factor_graph_utils::addGPSFactor(graph, gps_data[gps_index], lie_direction,
                                      R_gps, keys);
-    
-    // If we've reached the window size, optimize the graph and marginalize the oldest state
-    if (graph.getStates().getNumStatesForType(keys.nav_state_key) >= window_size) {
+
+    // If we've reached the window size, optimize the graph and marginalize the
+    // oldest state
+    if (graph.getStates().getNumStatesForType(keys.nav_state_key) >=
+        window_size) {
       graph.solve(options);
       ceres::Solver::Summary summary = graph.getSummary();
       LOG(INFO) << summary.BriefReport();
 
       // Marginalize the oldest IMU state
       double oldest_stamp;
-      bool success = graph.getStates().getLastStamp(
-          keys.nav_state_key, oldest_stamp);
+      bool success =
+          graph.getStates().getOldestStamp(keys.nav_state_key, oldest_stamp);
       if (!success) {
         LOG(ERROR) << "Failed to get oldest state stamp for key: "
                    << keys.nav_state_key;
         return;
       }
+      LOG(INFO) << "Marginalizing oldest IMU state at timestamp: "
+                << oldest_stamp;
       factor_graph_utils::marginalizeIMUState(graph, oldest_stamp, keys);
+
+      // Compute the latest IMU state and covariance and write to files
+      IMUState latest_imu_state = factor_graph_utils::getIMUState(
+          graph, cur_imu_state.timestamp(), keys);
+      // Overwrite the current IMU state with the latest one
+      cur_imu_state = latest_imu_state;
+
+      writeVectorToFile(est_imu_file, latest_imu_state.toVector());
+      Eigen::Matrix<double, 15, 15> imu_cov =
+          factor_graph_utils::computeIMUCovariance(
+              graph, latest_imu_state.timestamp(), keys);
+      Eigen::Matrix<double, 226, 1> flat_cov;
+      flat_cov(0) = latest_imu_state.timestamp();
+      flat_cov.block<225, 1>(1, 0) = flattenMatrix(imu_cov);
+      writeVectorToFile(cov_file, flat_cov);
     }
+
+    prev_gps_timestamp = cur_gps_timestamp;
   }
 }
 
@@ -151,7 +173,7 @@ void runFullBatchEstimator(
     const std::string &cov_file) {
 
   // Create the factor graph and problem keys
-  ceres_swf::FactorGraph graph;
+  ceres_nav::FactorGraph graph;
   factor_graph_utils::ProblemKeys keys;
 
   // Add the first IMU state to the graph and add a prior factor

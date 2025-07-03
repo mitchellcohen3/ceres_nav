@@ -13,25 +13,50 @@
  * to use this, the user already creates ParameterBlock objects rather than
  */
 
-namespace ceres_swf {
+namespace ceres_nav {
 
 class FactorGraph {
 public:
   using StatePtr = std::shared_ptr<ParameterBlockBase>;
 
-  // This stores the actual Ceres problem.
+  /**
+   * @brief Default constructor for the FactorGraph class.
+   */
   FactorGraph();
 
+  /**
+   * @brief Constructor that allows the user to specify Ceres solver options.
+   */
+  FactorGraph(ceres::Solver::Options solver_options);
+
+  /**
+   * @brief Adds a state to the problem with a particular name and
+   * timestamp
+   *
+   */
   void addState(const std::string &name, double timestamp,
                 std::shared_ptr<ParameterBlockBase> state);
 
-  // Add a factor to the problem
+  /**
+   * @brief Adds a factor to the problem.
+   * @param state_ids A vector of StateID objects that the factor is connected
+   * to
+   * @param  cost_function The Ceres cost function to add
+   * @param stamp The timestamp for the factor
+   * @param loss_function An optional Ceres loss function for the factor.
+   */
   void addFactor(const std::vector<StateID> &state_ids,
                  ceres::CostFunction *cost_function, double stamp,
                  ceres::LossFunction *loss_function = nullptr);
 
-  // Solve the underlying optimization problem
+  /**
+   * @brief Solves the optimization problem using the current solver options.
+   */
   void solve();
+
+  /**
+   * @brief Solves the optimization problem using the provided solver options.
+   */
   void solve(ceres::Solver::Options Options);
 
   /** Get information about the internal Ceres problem. */
@@ -53,12 +78,18 @@ public:
   void removeState(const std::string &name, double timestamp);
 
   // Marginalize states from the problem
-  bool marginalizeStates(const std::vector<StateID> &state_ids);
+  bool marginalizeStates(std::vector<StateID> state_ids);
 
   // Get the cost functions for a set of residual blocks
   bool getCostFunctionPointersForResidualBlocks(
       const std::vector<ceres::ResidualBlockId> &residual_ids,
       std::vector<ceres::CostFunction *> &cost_functions) const;
+
+  /**
+   * @brief Computes the covariance of a state with a given name at
+   * a particular timestamp.
+   */
+  bool computeCovariance(const std::string &name, double timestamp);
 
   /// Getters
   ceres::Problem &getProblem() { return problem_; }
@@ -68,15 +99,11 @@ public:
 
   double getLastSolverDuration() { return last_solver_duration; }
   double getTotalSolverDuration() { return total_solver_duration; }
+  double getLastMarginalizationDuration() { return marginalization_duration; }
+
   int getNumSolverIterations() { return num_solver_iterations; }
   int numParameterBlocks() { return problem_.NumParameterBlocks(); }
   int numResidualBlocks() { return problem_.NumResidualBlocks(); }
-
-  /**
-   * @brief Computes the covariance of a state with a given name at
-   * a particular timestamp.
-   */
-  bool computeCovariance(const std::string &name, double timestamp);
 
   /**
    * @brief Gets the marginalization information for a set of states.
@@ -86,7 +113,9 @@ public:
                               std::vector<ceres::ResidualBlockId> &factors_m,
                               std::vector<int> &state_sizes,
                               std::vector<int> &local_sizes,
-                              std::vector<StateID> &state_ids) const;
+                              std::vector<StateID> &state_ids,
+                              std::vector<const ceres::LocalParameterization *>
+                                  &local_param_ptrs) const;
 
 protected:
   // The collection of states
@@ -106,13 +135,15 @@ protected:
   ceres::Solver::Summary summary_;
   ceres::Solver::Options solver_options_;
 
-  // A mapping between residual block IDs and the cost function
+  // A mapping between residual block IDs and the cost function pointer
   std::unordered_map<ceres::ResidualBlockId, ceres::CostFunction *>
       residual_blocks_to_cost_function_map;
 
+  // Store info about the last computation times
   double last_solver_duration = 0.0;
   double total_solver_duration = 0.0;
   int num_solver_iterations = 0;
+  double marginalization_duration = 0.0;
 };
 
-} // namespace ceres_swf
+} // namespace ceres_nav

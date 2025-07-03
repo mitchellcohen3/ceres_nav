@@ -8,6 +8,8 @@ set(CMAKE_CXX_STANDARD 17)
 option(OPTION_BUILD_TESTS "Build tests." ON)
 option(OPTION_BUILD_EXAMPLES "Build examples." ON) 
 
+message(STATUS: "Build type: " ${CMAKE_BUILD_TYPE})
+
 # Find Dependancies
 find_package(Catch2 3 REQUIRED)
 find_package (Eigen3 3.3 REQUIRED NO_MODULE)
@@ -33,6 +35,7 @@ list(
     src/factors/RelativeLandmarkFactor.cpp
     src/factors/RelativePoseFactor.cpp
     src/factors/IMUPriorFactor.cpp
+    src/factors/MarginalizationPrior.cpp
 
     src/lie/SE23.cpp
     src/lie/SE3.cpp
@@ -43,6 +46,7 @@ list(
 
     src/utils/Utils.cpp
     src/utils/CostFunctionUtils.cpp
+    src/utils/VectorMath.cpp
 
     src/local_parameterizations/PoseLocalParameterization.cpp
     src/local_parameterizations/ExtendedPoseLocalParameterization.cpp
@@ -50,6 +54,7 @@ list(
     src/lib/Covariance.cpp
     src/lib/FactorGraph.cpp
     src/lib/StateCollection.cpp
+    src/lib/Marginalization.cpp
 )
 
 # Declare the static library

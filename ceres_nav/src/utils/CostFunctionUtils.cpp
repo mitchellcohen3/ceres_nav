@@ -1,6 +1,6 @@
 #include "utils/CostFunctionUtils.h"
 
-namespace ceres_swf {
+namespace ceres_nav {
 
 bool evaluateCostFunction(
     const std::shared_ptr<ceres::CostFunction> &cost_function,
@@ -165,4 +165,4 @@ bool checkNumericalJacobians(
   return is_correct;
 }
 
-}  // namespace ceres_swf
+}  // namespace ceres_nav
