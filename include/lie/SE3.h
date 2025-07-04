@@ -8,6 +8,7 @@ class SE3 {
 public:
   static constexpr float small_angle_tol = 1e-7;
 
+  static Eigen::Matrix4d wedge(const Eigen::Matrix<double, 6, 1> &x);
   static Eigen::Matrix<double, 4, 4> expMap(const Eigen::Matrix<double, 6, 1> &x);
   static Eigen::Matrix<double, 6, 1> logMap(const Eigen::MatrixXd &X);
   static Eigen::MatrixXd fromComponents(const Eigen::Matrix3d &C, const Eigen::Vector3d &r);

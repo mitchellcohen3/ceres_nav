@@ -32,7 +32,6 @@ public:
   /**
    * @brief Adds a state to the problem with a particular name and
    * timestamp
-   *
    */
   void addState(const std::string &name, double timestamp,
                 std::shared_ptr<ParameterBlockBase> state);
@@ -93,9 +92,11 @@ public:
 
   /// Getters
   ceres::Problem &getProblem() { return problem_; }
-  ceres::Solver::Summary &getSummary() { return summary_; }
+  ceres::Solver::Summary &getSolverSummary() { return summary_; }
   StateCollection &getStates() { return states_; }
   ceres::Solver::Options &getSolverOptions() { return solver_options_; }
+
+  std::vector<ceres::CostFunction *> getCostFunctionPtrs();
 
   double getLastSolverDuration() { return last_solver_duration; }
   double getTotalSolverDuration() { return total_solver_duration; }
@@ -104,6 +105,10 @@ public:
   int getNumSolverIterations() { return num_solver_iterations; }
   int numParameterBlocks() { return problem_.NumParameterBlocks(); }
   int numResidualBlocks() { return problem_.NumResidualBlocks(); }
+
+  void setSolverOptions(const ceres::Solver::Options &options) {
+    solver_options_ = options;
+  }
 
   /**
    * @brief Gets the marginalization information for a set of states.

@@ -342,4 +342,23 @@ bool getMarkovBlanketInfo(const std::vector<StateID> &states_m,
                           std::vector<ceres::ResidualBlockId> &factors_r,
                           std::vector<StateID> &ConnectedStateIDs);
 
+std::vector<ceres::CostFunction *> FactorGraph::getCostFunctionPtrs() {
+  std::vector<ceres::CostFunction *> cost_functions;
+  std::vector<ceres::ResidualBlockId> residual_blocks;
+  problem_.GetResidualBlocks(&residual_blocks);
+
+  // Extract cost functions from map
+  for (auto const &residual_block : residual_blocks) {
+    // Check if this is actually in the map
+    if (residual_blocks_to_cost_function_map.find(residual_block) ==
+        residual_blocks_to_cost_function_map.end()) {
+      LOG(ERROR) << "Residual block ID not found in the map! Residual block ID: "
+                 << residual_block;
+      return std::vector<ceres::CostFunction *>();
+    }
+    cost_functions.push_back(residual_blocks_to_cost_function_map.at(residual_block));
+  } 
+  return cost_functions;
+}
+
 } // namespace ceres_nav
