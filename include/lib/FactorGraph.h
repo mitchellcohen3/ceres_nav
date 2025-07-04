@@ -76,6 +76,15 @@ public:
   // Remove states from the problem
   void removeState(const std::string &name, double timestamp);
 
+  /**
+   * @brief Sets a state as constant in the optimization problem.
+   */
+  void setConstant(const std::string &name, double timestamp);
+
+  /**
+   * @brief Sets a state as variable in the optimization problem.
+   */
+  void setVariable(const std::string &name, double timestamp);
   // Marginalize states from the problem
   bool marginalizeStates(std::vector<StateID> state_ids);
 

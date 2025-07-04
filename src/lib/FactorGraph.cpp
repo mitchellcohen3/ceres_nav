@@ -172,6 +172,26 @@ void FactorGraph::removeState(const std::string &name, double timestamp) {
   }
 }
 
+void FactorGraph::setConstant(const std::string &name, double timestamp) {
+  if (states_.hasState(name, timestamp)) {
+    problem_.SetParameterBlockConstant(
+        states_.getState(name, timestamp)->estimatePointer());
+  } else {
+    LOG(ERROR) << "State not found in collection: " << name
+               << " at timestamp: " << timestamp;
+  }
+}
+
+void FactorGraph::setVariable(const std::string &name, double timestamp) {
+  if (states_.hasState(name, timestamp)) {
+    problem_.SetParameterBlockVariable(
+        states_.getState(name, timestamp)->estimatePointer());
+  } else {
+    LOG(ERROR) << "State not found in collection: " << name
+               << " at timestamp: " << timestamp;
+  }
+}
+
 bool FactorGraph::computeCovariance(const std::string &key, double timestamp) {
   const bool success = calculateCovariance(problem_, states_, key, timestamp);
   return success;
@@ -225,8 +245,8 @@ bool FactorGraph::marginalizeStates(std::vector<StateID> states_m) {
     problem_.Evaluate(options, nullptr, &ResidualVec, nullptr, &JacobianCRS);
 
     // Map the error to a vector
-    ceres_nav::Vector residual_vec = Eigen::Map<ceres_nav::Vector>(
-        ResidualVec.data(), ResidualVec.size());
+    ceres_nav::Vector residual_vec =
+        Eigen::Map<ceres_nav::Vector>(ResidualVec.data(), ResidualVec.size());
 
     // Convert the Jacobian to an Eigen Matrix
     ceres_nav::Matrix jacobian;
@@ -352,12 +372,14 @@ std::vector<ceres::CostFunction *> FactorGraph::getCostFunctionPtrs() {
     // Check if this is actually in the map
     if (residual_blocks_to_cost_function_map.find(residual_block) ==
         residual_blocks_to_cost_function_map.end()) {
-      LOG(ERROR) << "Residual block ID not found in the map! Residual block ID: "
-                 << residual_block;
+      LOG(ERROR)
+          << "Residual block ID not found in the map! Residual block ID: "
+          << residual_block;
       return std::vector<ceres::CostFunction *>();
     }
-    cost_functions.push_back(residual_blocks_to_cost_function_map.at(residual_block));
-  } 
+    cost_functions.push_back(
+        residual_blocks_to_cost_function_map.at(residual_block));
+  }
   return cost_functions;
 }
 
