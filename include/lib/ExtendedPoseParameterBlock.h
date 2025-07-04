@@ -28,7 +28,8 @@ public:
       LieDirection direction = LieDirection::left)
       : ParameterBlock<15, 9>(name) {
     // Create a local parameterization for SE(3) poses
-    local_parameterization_ptr_ = new ExtendedPoseLocalParameterization(direction);
+    local_parameterization_ptr_ =
+        new ExtendedPoseLocalParameterization(direction);
   }
 
   /**
@@ -98,4 +99,9 @@ public:
                             double *jacobian) const override final {
     local_parameterization_ptr_->ComputeJacobian(x0, jacobian);
   }
+
+  LieDirection direction() const { return direction_; }
+
+protected:
+  LieDirection direction_;
 };

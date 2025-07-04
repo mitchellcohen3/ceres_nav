@@ -6,6 +6,7 @@
 #include "utils/VectorTypes.h"
 
 #include "factors/MarginalizationPrior.h"
+#include "utils/Timer.h"
 
 #include <glog/logging.h>
 #include <thread>
@@ -172,12 +173,38 @@ void FactorGraph::removeState(const std::string &name, double timestamp) {
   }
 }
 
+void FactorGraph::setConstant(const std::string &name, double timestamp) {
+  if (states_.hasState(name, timestamp)) {
+    problem_.SetParameterBlockConstant(
+        states_.getState(name, timestamp)->estimatePointer());
+  } else {
+    LOG(ERROR) << "State not found in collection: " << name
+               << " at timestamp: " << timestamp;
+  }
+}
+
+void FactorGraph::setVariable(const std::string &name, double timestamp) {
+  if (states_.hasState(name, timestamp)) {
+    problem_.SetParameterBlockVariable(
+        states_.getState(name, timestamp)->estimatePointer());
+  } else {
+    LOG(ERROR) << "State not found in collection: " << name
+               << " at timestamp: " << timestamp;
+  }
+}
+
 bool FactorGraph::computeCovariance(const std::string &key, double timestamp) {
   const bool success = calculateCovariance(problem_, states_, key, timestamp);
   return success;
 }
 
 bool FactorGraph::marginalizeStates(std::vector<StateID> states_m) {
+  Timer marg_timer;
+  marg_timer.tic();
+
+  Timer get_info_timer;
+  get_info_timer.tic();
+
   if (states_m.empty()) {
     LOG(ERROR) << "No states to marginalize.";
     return false;
@@ -201,10 +228,16 @@ bool FactorGraph::marginalizeStates(std::vector<StateID> states_m) {
   std::vector<const ceres::LocalParameterization *> local_param_ptrs;
   getMarginalizationInfo(state_ptrs_m, connected_state_ptrs, connected_factors,
                          global_size, local_size, state_ids, local_param_ptrs);
+  double info_duration = get_info_timer.toc() * 1e-3;
+  marginalization_timing_stats_["marginalization_info_duration"] =
+      info_duration;
 
   if (!connected_state_ptrs.empty()) {
     // Evaluate the sub-problem involving marginalized states and their
     // connected states and factors
+    Timer marg_eval_timer;
+    marg_eval_timer.tic();
+
     ceres::Problem::EvaluateOptions options;
     options.apply_loss_function = true;
     options.num_threads = static_cast<int>(std::thread::hardware_concurrency());
@@ -224,19 +257,31 @@ bool FactorGraph::marginalizeStates(std::vector<StateID> states_m) {
     std::vector<double> ResidualVec;
     problem_.Evaluate(options, nullptr, &ResidualVec, nullptr, &JacobianCRS);
 
+    marg_eval_timer.toc();
+    double marg_eval_duration = marg_eval_timer.toc() * 1e-3;
+    marginalization_timing_stats_["marginalization_evaluation_duration"] =
+        marg_eval_duration;
+
     // Map the error to a vector
-    ceres_nav::Vector residual_vec = Eigen::Map<ceres_nav::Vector>(
-        ResidualVec.data(), ResidualVec.size());
+    ceres_nav::Vector residual_vec =
+        Eigen::Map<ceres_nav::Vector>(ResidualVec.data(), ResidualVec.size());
 
     // Convert the Jacobian to an Eigen Matrix
     ceres_nav::Matrix jacobian;
     ceres_nav::CRSToMatrix(JacobianCRS, jacobian);
 
+    Timer schur_compl_timer;
+    schur_compl_timer.tic();
     // Compute the marginalziation
     ceres_nav::Matrix jacobian_marg;
     ceres_nav::Vector residual_marg;
     ceres_nav::Marginalize(residual_vec, jacobian, residual_marg, jacobian_marg,
                            marginal_size, 1.0);
+    schur_compl_timer.toc();
+    double schur_compl_duration = schur_compl_timer.toc() * 1e-3;
+    marginalization_timing_stats_["marginalization_schur_complement_duration"] =
+        schur_compl_duration;
+
     // Store the original states
     std::vector<ceres_nav::Vector> original_states;
     for (int n = 0; n < connected_state_ptrs.size(); n++) {
@@ -265,6 +310,9 @@ bool FactorGraph::marginalizeStates(std::vector<StateID> states_m) {
   for (const StateID &state : states_m) {
     removeState(state.ID, state.timestamp);
   }
+
+  // Get the marginalization time
+  marginalization_duration = marg_timer.toc() * 1e-3;
   return true;
 }
 
@@ -341,5 +389,26 @@ bool getMarkovBlanketInfo(const std::vector<StateID> &states_m,
                           std::vector<ceres::ResidualBlockId> &factors_m,
                           std::vector<ceres::ResidualBlockId> &factors_r,
                           std::vector<StateID> &ConnectedStateIDs);
+
+std::vector<ceres::CostFunction *> FactorGraph::getCostFunctionPtrs() {
+  std::vector<ceres::CostFunction *> cost_functions;
+  std::vector<ceres::ResidualBlockId> residual_blocks;
+  problem_.GetResidualBlocks(&residual_blocks);
+
+  // Extract cost functions from map
+  for (auto const &residual_block : residual_blocks) {
+    // Check if this is actually in the map
+    if (residual_blocks_to_cost_function_map.find(residual_block) ==
+        residual_blocks_to_cost_function_map.end()) {
+      LOG(ERROR)
+          << "Residual block ID not found in the map! Residual block ID: "
+          << residual_block;
+      return std::vector<ceres::CostFunction *>();
+    }
+    cost_functions.push_back(
+        residual_blocks_to_cost_function_map.at(residual_block));
+  }
+  return cost_functions;
+}
 
 } // namespace ceres_nav

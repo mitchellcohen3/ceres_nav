@@ -32,7 +32,6 @@ public:
   /**
    * @brief Adds a state to the problem with a particular name and
    * timestamp
-   *
    */
   void addState(const std::string &name, double timestamp,
                 std::shared_ptr<ParameterBlockBase> state);
@@ -77,6 +76,15 @@ public:
   // Remove states from the problem
   void removeState(const std::string &name, double timestamp);
 
+  /**
+   * @brief Sets a state as constant in the optimization problem.
+   */
+  void setConstant(const std::string &name, double timestamp);
+
+  /**
+   * @brief Sets a state as variable in the optimization problem.
+   */
+  void setVariable(const std::string &name, double timestamp);
   // Marginalize states from the problem
   bool marginalizeStates(std::vector<StateID> state_ids);
 
@@ -91,20 +99,6 @@ public:
    */
   bool computeCovariance(const std::string &name, double timestamp);
 
-  /// Getters
-  ceres::Problem &getProblem() { return problem_; }
-  ceres::Solver::Summary &getSummary() { return summary_; }
-  StateCollection &getStates() { return states_; }
-  ceres::Solver::Options &getSolverOptions() { return solver_options_; }
-
-  double getLastSolverDuration() { return last_solver_duration; }
-  double getTotalSolverDuration() { return total_solver_duration; }
-  double getLastMarginalizationDuration() { return marginalization_duration; }
-
-  int getNumSolverIterations() { return num_solver_iterations; }
-  int numParameterBlocks() { return problem_.NumParameterBlocks(); }
-  int numResidualBlocks() { return problem_.NumResidualBlocks(); }
-
   /**
    * @brief Gets the marginalization information for a set of states.
    */
@@ -116,6 +110,30 @@ public:
                               std::vector<StateID> &state_ids,
                               std::vector<const ceres::LocalParameterization *>
                                   &local_param_ptrs) const;
+                                  
+  /// Getters
+  ceres::Problem &getProblem() { return problem_; }
+  ceres::Solver::Summary &getSolverSummary() { return summary_; }
+  StateCollection &getStates() { return states_; }
+  ceres::Solver::Options &getSolverOptions() { return solver_options_; }
+
+  std::vector<ceres::CostFunction *> getCostFunctionPtrs();
+
+  double getLastSolverDuration() { return last_solver_duration; }
+  double getTotalSolverDuration() { return total_solver_duration; }
+  double getLastMarginalizationDuration() { return marginalization_duration; }
+
+  int getNumSolverIterations() { return num_solver_iterations; }
+  int numParameterBlocks() { return problem_.NumParameterBlocks(); }
+  int numResidualBlocks() { return problem_.NumResidualBlocks(); }
+
+  void setSolverOptions(const ceres::Solver::Options &options) {
+    solver_options_ = options;
+  }
+
+  std::map<std::string, double> getMarginalizationTimingStats() const {
+    return marginalization_timing_stats_;
+  }
 
 protected:
   // The collection of states
@@ -144,6 +162,8 @@ protected:
   double total_solver_duration = 0.0;
   int num_solver_iterations = 0;
   double marginalization_duration = 0.0;
+
+  std::map<std::string, double> marginalization_timing_stats_;
 };
 
 } // namespace ceres_nav
