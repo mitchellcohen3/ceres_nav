@@ -62,17 +62,21 @@ list(
 )
 
 # Declare the static library
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 add_library(${PROJECT_NAME} STATIC ${lib_sources})
+add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
 # Include directories
 target_include_directories(${PROJECT_NAME} PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
 )
 
 # Link libraries
 target_link_libraries(${PROJECT_NAME}
     Eigen3::Eigen
     ${CERES_LIBRARIES}
+    ${Boost_LIBRARIES}
 )
 
 if (OPTION_BUILD_EXAMPLES) 

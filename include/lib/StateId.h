@@ -2,6 +2,8 @@
 
 #include <string>
 
+namespace ceres_nav {
+
 struct StateID {
   StateID() {
     ID = "";
@@ -19,3 +21,5 @@ struct StateID {
   std::string ID;
   double timestamp;
 };
+
+} // namespace ceres_nav

@@ -152,6 +152,11 @@ bool MarginalizationPrior::Evaluate(double const *const *Parameters,
 
       const ExtendedPoseLocalParameterization *extended_param =
           dynamic_cast<const ExtendedPoseLocalParameterization *>(local_param);
+      if (extended_param == nullptr) {
+        LOG(ERROR) << "MarginalizationPrior: downcast to "
+                      "ExtendedPoseLocalParameterization failed!";
+        return false;
+      }
       LieDirection direction = extended_param->direction();
 
       // Compute x.minus(x_prior) for the extended pose
@@ -181,10 +186,38 @@ bool MarginalizationPrior::Evaluate(double const *const *Parameters,
       }
       break;
     }
-    case ParameterType::Pose:
-      LOG(ERROR)
-          << "MarginalizationPrior: Pose parameterization not implemented!";
+    case ParameterType::Pose: {
+      const PoseLocalParameterization *pose_param =
+          dynamic_cast<const PoseLocalParameterization *>(local_param);
+      if (pose_param == nullptr) {
+        LOG(ERROR) << "MarginalizationPrior: downcast to "
+                      "PoseLocalParameterization failed!";
+        return false;
+      }
+
+      LieDirection direction = pose_param->direction();
+      // Compute x.minus(x_prior) for the pose
+      Eigen::Matrix3d C_prior = SO3::unflatten(LinearState.block<9, 1>(0, 0));
+      Eigen::Vector3d r_prior = LinearState.block<3, 1>(9, 0);
+
+      Eigen::Matrix3d C = SO3::unflatten(State.block<9, 1>(0, 0));
+      Eigen::Vector3d r = State.block<3, 1>(9, 0);
+
+      Eigen::Matrix<double, 4, 4> cur_pose = SE3::fromComponents(C, r);
+      Eigen::Matrix<double, 4, 4> pose_prior =
+          SE3::fromComponents(C_prior, r_prior);
+      Eigen::Matrix<double, 6, 1> pose_diff =
+          SE3::minus(cur_pose, pose_prior, direction);
+
+      DeltaState.segment(IndexError, LocalSize) = pose_diff;
+      if (HasJacobian) {
+        // Get the manifold Jacobian from Ceres
+        Eigen::Matrix<double, 12, 6> jac = pose_param->getEigenJacobian();
+        JacobianManifold.block(IndexError, IndexState, LocalSize, GlobalSize) =
+            jac.transpose();
+      }
       break;
+    }
     case ParameterType::Unknown:
       LOG(ERROR) << "MarginalizationPrior: Unknown parameter type!";
       return false;

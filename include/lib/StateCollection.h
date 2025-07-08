@@ -143,7 +143,7 @@ public:
                         std::vector<double> &stamps) const;
 
 protected:
-  static constexpr double default_timestamp_precision = 1e-6;
+  static constexpr double default_timestamp_precision = 1e-9;
   double timestamp_precision_ = default_timestamp_precision;
 
   int64_t timestampToKey(double timestamp) const {

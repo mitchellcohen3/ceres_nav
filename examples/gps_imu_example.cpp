@@ -128,7 +128,7 @@ void runSlidingWindowEstimator(
     if (graph.getStates().getNumStatesForType(keys.nav_state_key) >=
         window_size) {
       graph.solve(options);
-      ceres::Solver::Summary summary = graph.getSummary();
+      ceres::Solver::Summary summary = graph.getSolverSummary();
       LOG(INFO) << summary.BriefReport();
 
       // Marginalize the oldest IMU state
@@ -235,7 +235,7 @@ void runFullBatchEstimator(
 
   // Solve the problem
   graph.solve(options);
-  ceres::Solver::Summary summary = graph.getSummary();
+  ceres::Solver::Summary summary = graph.getSolverSummary();
   LOG(INFO) << "Solver summary: " << summary.FullReport();
 
   // Get the optimized states

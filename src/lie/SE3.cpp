@@ -4,6 +4,15 @@
 #include <Eigen/Dense>
 #include <iostream>
 
+Eigen::Matrix4d SE3::wedge(const Eigen::Matrix<double, 6, 1> &xi) {
+  Eigen::Matrix4d X;
+  // clang-format off
+  X << SO3::cross(xi.block<3, 1>(0, 0)), xi.block<3, 1>(3, 0), 
+    0, 0, 0, 0;
+  // clang-format on
+  return X;
+}
+
 Eigen::Matrix<double, 4, 4> SE3::expMap(const Eigen::Matrix<double, 6, 1> &x) {
   Eigen::Matrix<double, 4, 4> X = Eigen::Matrix<double, 4, 4>::Identity();
   Eigen::Matrix3d R{SO3::expMap(x.block<3, 1>(0, 0))};
