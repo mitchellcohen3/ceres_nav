@@ -1,7 +1,12 @@
 #pragma once
 
-#include "lib/StateCollection.h"
-#include <ceres/ceres.h>
+#include <string>
+
+// Forward declarations 
+class StateCollection;
+namespace ceres {
+    class Problem;
+}
 
 namespace ceres_nav {
 bool calculateCovariance(ceres::Problem &graph, StateCollection &states,

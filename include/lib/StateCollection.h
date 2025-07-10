@@ -3,11 +3,9 @@
 #include <map>
 #include <memory>
 #include <unordered_map>
-#include <iostream>
 
 #include "ParameterBlockBase.h"
-
-#include <ceres/ceres.h>
+#include <glog/logging.h>
 
 /**
  * @brief Holds a collection of states in time, accessible by a string key and a
@@ -58,8 +56,9 @@ public:
           return casted_ptr;
         } else {
           // If downcast fails, return nullptr
-          std::cerr << "Failed to downcast state for key: " << key
-                    << " at timestamp: " << timestamp << std::endl;
+          LOG(ERROR) << "Failed to downcast state for key: " << key
+                     << "at timestamp: " << timestamp;
+          return nullptr;
         }
       }
     }

@@ -1,5 +1,7 @@
 #include "lib/Covariance.h"
 
+#include "lib/StateCollection.h"
+#include <ceres/ceres.h>
 #include <glog/logging.h>
 #include <thread>
 #include <vector>

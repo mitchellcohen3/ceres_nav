@@ -2,7 +2,6 @@
 
 #include "ParameterBlockBase.h"
 #include <Eigen/Dense>
-#include <ceres/ceres.h>
 
 /**
  * @brief Templated parameter block for optimization in Ceres.
