@@ -11,6 +11,13 @@ void StateCollection::addState(const std::string &name, double timestamp,
     states_.emplace(name,
                     std::map<int64_t, std::shared_ptr<ParameterBlockBase>>());
   }
+
+  // Check if a state already exists for this name and timestamp
+  if (states_.at(name).find(timestamp_key) != states_.at(name).end()) {
+    LOG(ERROR) << "State with name: " << name << " and timestamp: " << timestamp
+               << " already exists.";
+  }
+
   // Add the state to the map for this name
   states_.at(name).emplace(timestamp_key, state);
 }
@@ -53,7 +60,7 @@ void StateCollection::removeState(const std::string &key, double timestamp) {
 }
 
 bool StateCollection::getOldestStamp(const std::string &key,
-                                    double &timestamp) const {
+                                     double &timestamp) const {
   auto it = states_.find(key);
   if (it != states_.end() && !it->second.empty()) {
     int64_t timestamp_key = it->second.begin()->first;
@@ -64,7 +71,7 @@ bool StateCollection::getOldestStamp(const std::string &key,
 }
 
 bool StateCollection::getLatestStamp(const std::string &key,
-                                   double &timestamp) const {
+                                     double &timestamp) const {
   auto it = states_.find(key);
   if (it != states_.end() && !it->second.empty()) {
     int64_t timestamp_key = it->second.rbegin()->first;
@@ -86,7 +93,8 @@ bool StateCollection::getTimesForState(const std::string &key,
   return false;
 }
 
-std::shared_ptr<ParameterBlockBase> StateCollection::getStateByEstimatePointer(double *ptr) const {
+std::shared_ptr<ParameterBlockBase>
+StateCollection::getStateByEstimatePointer(double *ptr) const {
   // Loop through all states and check if the pointer matches
   for (auto const &state_map : states_) {
     for (auto const &state : state_map.second) {
