@@ -3,13 +3,34 @@ This repo contains a set of tools to help implement batch estimators and sliding
 
 ## Prerequisites
 This repo has been tested on Ubuntu 20.04 and has the following requirements:
-  - **Ceres Solver 2.0.0** - can be obtained by cloning [this repo](https://github.com/ceres-solver/ceres-solver/tree/2.0.0) and building from source.
+  - **Ceres Solver 2.0.0** - can be built from source using
+  ```bash
+  $ git clone git@github.com:ceres-solver/ceres-solver.git && cd ceres-solver
+  $ git checkout 2.0.0
+  $ mkdir build && cd build
+  $ cmake ..
+  $ make 
+  $ make install
+  ``` 
   - **Eigen3 >= 3.3**,
+  ```bash
+  $ sudo apt install libeigen3-dev
+  ```
   - **[glog](https://github.com/google/glog)**,
+  ```bash
+  $ sudo apt install libgoogle-glog-dev
+  ```
   - **[Catch2](https://github.com/catchorg/Catch2)** - to run the unit tests.
+    Catch2 can be installed from source using
+  ```bash
+  $ git clone https://github.com/catchorg/Catch2.git
+  $ cd Catch2
+  $ cmake -B build -S . -DBUILD_TESTING=OFF
+  $ sudo cmake --build build/ --target install
+  ```
 
 ## Build
-The library, tests, and examples can be built using:
+After installing the dependancies, the `ceres_nav` library, tests, and examples can be built using
 ```
 git clone https://github.com/mitchellcohen3/ceres_nav/
 cd ceres_nav
@@ -27,13 +48,19 @@ ctest
 ```
 
 ## Example Usage
-This repo contains a simulated GPS/IMU fusion example and can be executed using the Python script `examples/python/run_gps_imu_batch`. The examples additionally depend on the [navlie](https://github.com/decargroup/navlie) Python library, used to generate simulated IMU and GPS measurements, and additionally evaluate the results of the optimization. To install `navlie`, run
+This repo contains a simulated GPS/IMU fusion example and can be executed using
+the Python script:
+```bash
+$ python3 examples/python/run_gps_imu_fusion.py
 ```
-git clone https://github.com/decargroup/navlie
-cd navlie
-pip install -e .
+The examples additionally depend on the [navlie](https://github.com/decargroup/navlie) Python library, used to generate simulated IMU and GPS measurements, and additionally evaluate the results of the optimization. To install `navlie`, run
+```
+$ git clone https://github.com/decargroup/navlie
+$ cd navlie
+$ pip install -e .
 ```
 
+The
 ## Acknowledgements
 This repo is inspired partially by [libRSF](https://github.com/TUC-ProAut/libRSF), another great library for robust estimation using Ceres. `libRSF` only supports autodiff cost functions, while this repo supports traditional Ceres cost functions with analytic differentiation and provides tools to additionally check Jacobians numerically. The use of analytical derivatives becomes important when implementing sliding window filters for specific problems, such as visual-inertial odometry where the evaluation point of the Jacobians must be artificially modified to ensure consistency. 
 
