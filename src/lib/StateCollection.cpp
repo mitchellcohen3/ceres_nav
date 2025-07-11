@@ -105,3 +105,22 @@ StateCollection::getStateByEstimatePointer(double *ptr) const {
   }
   return nullptr;
 }
+
+std::shared_ptr<ParameterBlockBase> StateCollection::getOldestState(const std::string &key) const {
+  auto it = states_.find(key);
+  if (it != states_.end() && !it->second.empty()) {
+    // Return the first state
+    return it->second.begin()->second;
+  }
+  return nullptr;
+}
+
+
+std::shared_ptr<ParameterBlockBase> StateCollection::getLatestState(const std::string &key) const {
+  auto it = states_.find(key);
+  if (it != states_.end() && !it->second.empty()) {
+    // Return the last state 
+    return it->second.rbegin()->second;
+  }
+  return nullptr;
+}

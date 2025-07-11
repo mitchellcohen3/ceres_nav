@@ -1,7 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
-#include <iostream>
 
-// #include "base/ceres/swf/CostFunctionUtils.h"
 #include "lib/ParameterBlock.h"
 #include "lib/PoseParameterBlock.h"
 #include "lib/ExtendedPoseParameterBlock.h"

@@ -90,20 +90,30 @@ TEST_CASE("Test Multiple State Types") {
 
 TEST_CASE("Test Timestamp Operations") {
   StateCollection state_collection;
-  std::shared_ptr<ParameterBlock<3>> state =
-      std::make_shared<ParameterBlock<3>>(Eigen::Vector3d(1.0, 2.0, 3.0));
 
+  Eigen::Vector3d x(1.0, 2.0, 3.0);
   // Add states with timestamps and then try to retrieve them
   double dt = 0.02;
   double cur_stamp = 102.523;
   int num_states = 100;
   std::vector<double> timestamps;
+  std::vector<Eigen::Vector3d> state_values;
   for (int i = 0; i < num_states; ++i) {
+
+    // Update the state
+    x(0) = x(0) + 0.1 * i;
+    x(1) = x(1) + 0.2 * i;
+    x(2) = x(2) + 0.3 * i;
+
+    std::shared_ptr<ParameterBlock<3>> state =
+        std::make_shared<ParameterBlock<3>>(x);
     state_collection.addState("x", cur_stamp, state);
 
     std::shared_ptr<ParameterBlockBase> retrieved_state =
         state_collection.getState("x", cur_stamp);
     REQUIRE(retrieved_state != nullptr);
+
+    state_values.push_back(x);
     timestamps.push_back(cur_stamp);
     cur_stamp += dt;
   }
@@ -114,11 +124,24 @@ TEST_CASE("Test Timestamp Operations") {
   REQUIRE(state_collection.getLatestStamp("x", latest_stamp));
 
   // Check that the oldest and latest timestamps approximately match
-  REQUIRE_THAT(oldest_stamp, Catch::Matchers::WithinAbs(timestamps.front(), 1e-5));
-  REQUIRE_THAT(latest_stamp, Catch::Matchers::WithinAbs(timestamps.back(), 1e-5));
+  REQUIRE_THAT(oldest_stamp,
+               Catch::Matchers::WithinAbs(timestamps.front(), 1e-5));
+  REQUIRE_THAT(latest_stamp,
+               Catch::Matchers::WithinAbs(timestamps.back(), 1e-5));
 
   // Get the timestamps for the states
   std::vector<double> timestamps_retrieved;
   REQUIRE(state_collection.getTimesForState("x", timestamps_retrieved));
   REQUIRE(timestamps_retrieved.size() == num_states);
+
+  // Get the oldest and latest states from the collection
+  std::shared_ptr<ParameterBlock<3>> oldest_state =
+      state_collection.getOldestState<ParameterBlock<3>>("x");
+  std::shared_ptr<ParameterBlock<3>> latest_state =
+      state_collection.getLatestState<ParameterBlock<3>>("x");
+
+  REQUIRE(oldest_state != nullptr);
+  REQUIRE(latest_state != nullptr);
+  REQUIRE(oldest_state->getEstimate().isApprox(state_values.front()));
+  REQUIRE(latest_state->getEstimate().isApprox(state_values.back()));
 }
