@@ -183,6 +183,17 @@ void FactorGraph::setConstant(const std::string &name, double timestamp) {
   }
 }
 
+bool FactorGraph::isConstant(const std::string &name, double timestamp) {
+  if (states_.hasState(name, timestamp)) {
+    return problem_.IsParameterBlockConstant(
+        states_.getState(name, timestamp)->estimatePointer());
+  } else {
+    LOG(ERROR) << "State not found in collection: " << name
+               << " at timestamp: " << timestamp;
+    return false;
+  }
+}
+
 void FactorGraph::setVariable(const std::string &name, double timestamp) {
   if (states_.hasState(name, timestamp)) {
     problem_.SetParameterBlockVariable(

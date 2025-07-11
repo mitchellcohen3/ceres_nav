@@ -3,11 +3,9 @@
 #include <map>
 #include <memory>
 #include <unordered_map>
-#include <iostream>
 
 #include "ParameterBlockBase.h"
-
-#include <ceres/ceres.h>
+#include <glog/logging.h>
 
 /**
  * @brief Holds a collection of states in time, accessible by a string key and a
@@ -58,8 +56,9 @@ public:
           return casted_ptr;
         } else {
           // If downcast fails, return nullptr
-          std::cerr << "Failed to downcast state for key: " << key
-                    << " at timestamp: " << timestamp << std::endl;
+          LOG(ERROR) << "Failed to downcast state for key: " << key
+                     << "at timestamp: " << timestamp;
+          return nullptr;
         }
       }
     }
@@ -84,34 +83,6 @@ public:
   std::shared_ptr<ParameterBlockBase>
   getStateByEstimatePointer(double *ptr) const;
 
-  // Retrieve the latest state for a given key
-  // StatePtr getLatestState(const std::string &key) const {
-  //   auto it1 = states_.find(key);
-  //   if (it1 != states_.end() && !it1->second.empty()) {
-  //     return it1->second.rbegin()->second;
-  //   }
-  //   return nullptr;
-  // }
-
-  // Remove the oldest state for a given key
-  // void RemoveOldestState(const std::string &key) {
-  //   auto it = states_.find(key);
-  //   if (it != states_.end() && !it->second.empty()) {
-  //     it->second.erase(it->second.begin()); // Remove first (oldest) element
-  //   }
-  // }
-
-  // // Remove states older than a given timestamp
-  // void RemoveOlderThan(const std::string &key, Timestamp threshold) {
-  //   auto it = states_.find(key);
-  //   if (it != states_.end()) {
-  //     auto &time_map = it->second;
-  //     while (!time_map.empty() && time_map.begin()->first < threshold) {
-  //       time_map.erase(time_map.begin());
-  //     }
-  //   }
-  // }
-
   // Check if a state exists at a given timestamp
   bool hasState(const std::string &key, double timestamp) const;
 
@@ -135,13 +106,51 @@ public:
   }
 
   /**
-   * @brief Get the first timestamp for a given key
+   * @brief Get the first timestamp for a given key.
    */
   bool getOldestStamp(const std::string &key, double &stamp) const;
+
+  /**
+   * @brief Gets the last timestamp for a given key.
+  */
   bool getLatestStamp(const std::string &key, double &stamp) const;
+
+  /**
+   * @brief Gets all timestamps for a given key.
+  */
   bool getTimesForState(const std::string &key,
                         std::vector<double> &stamps) const;
 
+  // Get the oldest and latest states for a given key
+  // Returns a pointer to the base class.
+  std::shared_ptr<ParameterBlockBase> getOldestState(const std::string &key) const;
+  std::shared_ptr<ParameterBlockBase> getLatestState(const std::string &key) const;
+
+  /**
+   * @brief Gets the oldest state of a specific type for a given key.
+  */
+  template <typename T>
+  std::shared_ptr<T> getOldestState(const std::string &key) const {
+    auto state = getOldestState(key);
+    if (state) {
+      return std::dynamic_pointer_cast<T>(state);
+    }
+    return nullptr;
+  }
+
+  /**
+   * @brief Templated version of getLatestState that returns a state of 
+   * specific type.
+  */
+  template <typename T>
+  std::shared_ptr<T> getLatestState(const std::string &key) const {
+    auto state = getLatestState(key);
+    if (state) {
+      return std::dynamic_pointer_cast<T>(state);
+    }
+    return nullptr;
+  }
+  
 protected:
   static constexpr double default_timestamp_precision = 1e-9;
   double timestamp_precision_ = default_timestamp_precision;

@@ -17,7 +17,7 @@ message(STATUS: "Build type: " ${CMAKE_BUILD_TYPE})
 # Find Dependancies
 find_package(Catch2 3 REQUIRED)
 find_package (Eigen3 3.3 REQUIRED NO_MODULE)
-find_package(Ceres REQUIRED)
+find_package(Ceres 2.0.0 REQUIRED)
 find_package(Boost REQUIRED COMPONENTS system filesystem thread date_time program_options) # for timing
 
 include_directories(

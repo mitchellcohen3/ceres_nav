@@ -6,8 +6,6 @@
 #include "lie/SO3.h"
 #include "local_parameterizations/PoseLocalParameterization.h"
 
-#include <ceres/ceres.h>
-
 /**
  * @brief Parameter block for SE(3) poses.
  *

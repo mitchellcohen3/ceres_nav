@@ -7,8 +7,6 @@
 #include "lie/SO3.h"
 #include "local_parameterizations/ExtendedPoseLocalParameterization.h"
 
-#include <ceres/ceres.h>
-
 /**
  * @brief Parameter block for SE_2(3) poses, containing attitude, velocity, and
  * position.

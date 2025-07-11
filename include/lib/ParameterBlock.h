@@ -2,7 +2,6 @@
 
 #include "ParameterBlockBase.h"
 #include <Eigen/Dense>
-#include <ceres/ceres.h>
 
 /**
  * @brief Templated parameter block for optimization in Ceres.
@@ -26,13 +25,9 @@ public:
   /**
    * @brief Constructor for a parameter block with an initial state
    */
-  ParameterBlock(const Eigen::VectorXd &initial_state,
+  ParameterBlock(const Eigen::Matrix<double, Dim, 1> &initial_state,
                  const std::string &name = "parameter_block")
       : ParameterBlockBase(name) {
-    if (initial_state.size() != Dim) {
-      throw std::runtime_error(
-          "Initial state size does not match parameter block dimension.");
-    }
     estimate_ = initial_state;
     covariance_.setIdentity();
   }

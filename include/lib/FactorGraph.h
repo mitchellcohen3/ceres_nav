@@ -82,9 +82,15 @@ public:
   void setConstant(const std::string &name, double timestamp);
 
   /**
+   * @brief Checks if a state is constant in the optimization problem.
+  */
+  bool isConstant(const std::string &name, double timestamp);
+
+  /**
    * @brief Sets a state as variable in the optimization problem.
    */
   void setVariable(const std::string &name, double timestamp);
+
   // Marginalize states from the problem
   bool marginalizeStates(std::vector<StateID> state_ids);
 
@@ -110,11 +116,11 @@ public:
                               std::vector<StateID> &state_ids,
                               std::vector<const ceres::LocalParameterization *>
                                   &local_param_ptrs) const;
-                                  
+
   /// Getters
-  ceres::Problem &getProblem() { return problem_; }
+  const ceres::Problem &getProblem() { return problem_; }
+  const StateCollection &getStates() { return states_; }
   ceres::Solver::Summary &getSolverSummary() { return summary_; }
-  StateCollection &getStates() { return states_; }
   ceres::Solver::Options &getSolverOptions() { return solver_options_; }
 
   std::vector<ceres::CostFunction *> getCostFunctionPtrs();
