@@ -422,4 +422,59 @@ std::vector<ceres::CostFunction *> FactorGraph::getCostFunctionPtrs() {
   return cost_functions;
 }
 
+Eigen::MatrixXd FactorGraph::evaluateJacobian(bool include_fixed_parameters) {
+  std::vector<double> residuals;
+  std::vector<double *> all_param_blocks;
+  ceres::CRSMatrix jacobian_crs;
+  problem_.GetParameterBlocks(&all_param_blocks);
+
+  std::vector<double *> parameter_blocks;
+  for (double *block : all_param_blocks) {
+    // Skip constant blocks if not including fixed parameters
+    if (problem_.IsParameterBlockConstant(block) && !include_fixed_parameters) {
+      continue;
+    }
+    parameter_blocks.push_back(block);
+  }
+
+  ceres::Problem::EvaluateOptions options;
+  options.apply_loss_function = true;
+  options.num_threads = static_cast<int>(std::thread::hardware_concurrency());
+  options.parameter_blocks = parameter_blocks;
+
+  problem_.Evaluate(options, nullptr, &residuals, nullptr, &jacobian_crs);
+
+  // Convert the CRS matrix to an Eigen matrix
+  ceres_nav::Matrix jacobian;
+  ceres_nav::CRSToMatrix(jacobian_crs, jacobian);
+
+  return jacobian;
+}
+
+Eigen::MatrixXd
+FactorGraph::evaluateJacobian(const std::vector<StateID> &states) {
+  std::vector<double *> state_ptrs;
+  if (!getStatePointers(states, state_ptrs)) {
+    LOG(ERROR) << "Failed to get state pointers for Jacobian evaluation.";
+    return Eigen::MatrixXd();
+  }
+
+  std::vector<double> residuals;
+  ceres::CRSMatrix jacobian_crs;
+
+  ceres::Problem::EvaluateOptions options;
+  options.apply_loss_function = true;
+  options.num_threads = static_cast<int>(std::thread::hardware_concurrency());
+  options.parameter_blocks = state_ptrs;
+  // options.residual_blocks =
+
+  problem_.Evaluate(options, nullptr, &residuals, nullptr, &jacobian_crs);
+
+  // Convert the CRS matrix to an Eigen matrix
+  ceres_nav::Matrix jacobian;
+  ceres_nav::CRSToMatrix(jacobian_crs, jacobian);
+
+  return jacobian;
+}
+
 } // namespace ceres_nav

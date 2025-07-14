@@ -83,7 +83,7 @@ public:
 
   /**
    * @brief Checks if a state is constant in the optimization problem.
-  */
+   */
   bool isConstant(const std::string &name, double timestamp);
 
   /**
@@ -140,6 +140,19 @@ public:
   std::map<std::string, double> getMarginalizationTimingStats() const {
     return marginalization_timing_stats_;
   }
+
+  /**
+   * @brief Evaluates the full Jacobian of the problem and returns the
+   * result as an Eigen matrix.
+   */
+  Eigen::MatrixXd evaluateJacobian(bool include_fixed_parameters = false);
+
+  /**
+   * @brief Evaluate the Jacobian for a specific set of state IDs.
+   * Here, the ordering of the state IDs is important, as it determines the
+   * ordering of the columns in the Jacobian.
+   */
+  Eigen::MatrixXd evaluateJacobian(const std::vector<StateID> &state_ids);
 
 protected:
   // The collection of states
