@@ -44,6 +44,11 @@ void FactorGraph::addFactor(const std::vector<StateID> &state_ids,
   // Build vector of state pointers
   std::vector<double *> state_ptrs;
   for (auto &state_id : state_ids) {
+    if (!states_.hasState(state_id.ID, state_id.timestamp)) {
+      LOG(ERROR) << "Trying to add a factor with state that does not exist: "
+                 << state_id.ID << " at timestamp: " << state_id.timestamp;
+      return;
+    }
     state_ptrs.push_back(
         states_.getState(state_id.ID, state_id.timestamp)->estimatePointer());
   }
@@ -54,8 +59,6 @@ void FactorGraph::addFactor(const std::vector<StateID> &state_ids,
 
   // Add to map
   residual_blocks_to_cost_function_map.insert({residual_id, cost_function});
-
-  // TODO: store the graph structure
 }
 
 void FactorGraph::solve() {

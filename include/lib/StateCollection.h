@@ -85,6 +85,9 @@ public:
 
   // Check if a state exists at a given timestamp
   bool hasState(const std::string &key, double timestamp) const;
+  bool hasStateType(const std::string &key) const {
+    return states_.find(key) != states_.end();
+  } 
 
   /**
    * @brief Get the number of different state types stored in the collection.
