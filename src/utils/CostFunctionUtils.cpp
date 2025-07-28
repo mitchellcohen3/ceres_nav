@@ -122,12 +122,12 @@ std::vector<Eigen::MatrixXd> computeNumericalJacobians(
 bool checkNumericalJacobians(
     const std::shared_ptr<ceres::CostFunction> &cost_function,
     const std::vector<std::shared_ptr<ParameterBlockBase>> &parameter_blocks,
-    const NumericalJacobianMethod &method,
-    double delta, bool print_jacobians) {
+    std::vector<Eigen::MatrixXd> &jacobians_analytical,
+    std::vector<Eigen::MatrixXd> &jacobians_numerical,
+    const NumericalJacobianMethod &method, double delta, bool print_jacobians) {
   // Prepare the container for our residual and Jacobians
   Eigen::VectorXd residuals;
   residuals.resize(cost_function->num_residuals());
-  std::vector<Eigen::MatrixXd> jacobians_analytical;
 
   // Evaluate the cost function and get analytical Jacobians
   bool success_eval = evaluateCostFunction(cost_function, parameter_blocks,
@@ -137,7 +137,7 @@ bool checkNumericalJacobians(
   }
 
   // Compute the numerical Jacobians
-  std::vector<Eigen::MatrixXd> jacobians_numerical =
+  jacobians_numerical =
       computeNumericalJacobians(cost_function, parameter_blocks, delta, method);
 
   // Ensure that the number of Jacobians matches
@@ -155,14 +155,14 @@ bool checkNumericalJacobians(
     }
 
     if (print_jacobians) {
-        std::cout << "Analytical Jacobian[" << i << "]: " << std::endl;
-        std::cout << jacobians_analytical[i] << std::endl;
-        std::cout << "Numerical Jacobian[" << i << "]: " << std::endl;
-        std::cout << jacobians_numerical[i] << std::endl; 
+      std::cout << "Analytical Jacobian[" << i << "]: " << std::endl;
+      std::cout << jacobians_analytical[i] << std::endl;
+      std::cout << "Numerical Jacobian[" << i << "]: " << std::endl;
+      std::cout << jacobians_numerical[i] << std::endl;
     }
   }
 
   return is_correct;
 }
 
-}  // namespace ceres_nav
+} // namespace ceres_nav

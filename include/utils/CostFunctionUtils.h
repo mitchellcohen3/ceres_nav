@@ -35,9 +35,15 @@ std::vector<Eigen::MatrixXd> computeNumericalJacobians(
     double delta = 1e-6,
     const NumericalJacobianMethod &method = NumericalJacobianMethod::CENTRAL);
 
+/**
+ * @brief Checks  the numerical Jacobians against the analytical ones.
+ * Returns true if they are approximately equal within a tolerance.
+ */
 bool checkNumericalJacobians(
     const std::shared_ptr<ceres::CostFunction> &cost_function,
     const std::vector<std::shared_ptr<ParameterBlockBase>> &parameter_blocks,
+    std::vector<Eigen::MatrixXd> &analytical_jacobians,
+    std::vector<Eigen::MatrixXd> &numerical_jacobians,
     const NumericalJacobianMethod &method = NumericalJacobianMethod::CENTRAL,
     double delta = 1e-6, bool print_jacobians = false);
 } // namespace ceres_nav
