@@ -7,11 +7,14 @@
 #include "ParameterBlockBase.h"
 #include <glog/logging.h>
 
+namespace ceres_nav {
+  struct StateID;
+}
+
 /**
  * @brief Holds a collection of states in time, accessible by a string key and a
  * timestamp.
  */
-
 class StateCollection {
 public:
   StateCollection(){};
@@ -82,6 +85,15 @@ public:
    */
   std::shared_ptr<ParameterBlockBase>
   getStateByEstimatePointer(double *ptr) const;
+
+  /**
+   * @brief Retrieves the StateID for a state by its estimate pointer.
+   * This is also useful for getting an associated StateID when you have a pointer to its estimate.
+   * 
+   * Returns false if the pointer is not found.
+   */
+  bool getStateIDByEstimatePointer(double *ptr, ceres_nav::StateID &state_id) const;
+
 
   // Check if a state exists at a given timestamp
   bool hasState(const std::string &key, double timestamp) const;
