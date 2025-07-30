@@ -60,18 +60,28 @@ public:
 
   /** Get information about the internal Ceres problem. */
   bool getStatePointers(const std::vector<StateID> &StateIDs,
-                        std::vector<double *> &state_ptrs);
+                        std::vector<double *> &state_ptrs) const;
   bool getConnectedFactorIDs(const std::vector<double *> &StatePointers,
-                             std::vector<ceres::ResidualBlockId> &factors);
+                             std::vector<ceres::ResidualBlockId> &factors) const;
   bool
   getConnectedStatePointers(const std::vector<ceres::ResidualBlockId> &factors,
                             std::vector<double *> &StatePointers);
-  // Simpl calls FactorGraphStructure.getMarginalizationInfo()
-  bool getMarkovBlanketInfo(const std::vector<StateID> &States_m,
-                            std::vector<double *> &ConnectedStatePtrs,
-                            std::vector<ceres::ResidualBlockId> &Factors_m,
-                            std::vector<ceres::ResidualBlockId> &Factors_r,
-                            std::vector<StateID> &ConnectedStateIDs);
+  /**
+   * @brief Gets the information about the connected states and factors 
+   * to the states in states_m.
+   * 
+   * @param states_m The states to get the Markov blanket information for.
+   * @param connected_state_ptrs Output vector of pointers to the connected states.
+   * @param factors_m Output vector of residual block IDs for the factors connected to the states
+   * @param factors_r Output vector of residual block IDs for the factors involved with the connected states,
+   *                  that are not in factors_m.
+   * @param connected_state_ids Output vector of StateID objects for the connected states.
+   */
+  bool getMarkovBlanketInfo(const std::vector<StateID> &states_m,
+                            std::vector<double *> &connected_state_ptrs,
+                            std::vector<ceres::ResidualBlockId> &factors_m,
+                            std::vector<ceres::ResidualBlockId> &factors_r,
+                            std::vector<StateID> &connected_state_ids) const;
 
   // Remove states from the problem
   void removeState(const std::string &name, double timestamp);
@@ -153,6 +163,12 @@ public:
    * ordering of the columns in the Jacobian.
    */
   Eigen::MatrixXd evaluateJacobian(const std::vector<StateID> &state_ids);
+
+  /**
+   * @brief Retrieves the cost function for a given residual block ID.
+   */
+  ceres::CostFunction *getCostFunction(
+      const ceres::ResidualBlockId &residual_id) const;
 
 protected:
   // The collection of states

@@ -1,4 +1,5 @@
 #include "lib/StateCollection.h"
+#include "lib/StateId.h"
 #include "utils/Utils.h"
 
 void StateCollection::addState(const std::string &name, double timestamp,
@@ -106,7 +107,22 @@ StateCollection::getStateByEstimatePointer(double *ptr) const {
   return nullptr;
 }
 
-std::shared_ptr<ParameterBlockBase> StateCollection::getOldestState(const std::string &key) const {
+bool StateCollection::getStateIDByEstimatePointer(
+    double *ptr, ceres_nav::StateID &state_id) const {
+  for (auto const &state_map_ : states_) {
+    for (auto const &state : state_map_.second) {
+      if (state.second->estimatePointer() == ptr) {
+        state_id =
+            ceres_nav::StateID(state_map_.first, keyToTimestamp(state.first));
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+std::shared_ptr<ParameterBlockBase>
+StateCollection::getOldestState(const std::string &key) const {
   auto it = states_.find(key);
   if (it != states_.end() && !it->second.empty()) {
     // Return the first state
@@ -115,11 +131,11 @@ std::shared_ptr<ParameterBlockBase> StateCollection::getOldestState(const std::s
   return nullptr;
 }
 
-
-std::shared_ptr<ParameterBlockBase> StateCollection::getLatestState(const std::string &key) const {
+std::shared_ptr<ParameterBlockBase>
+StateCollection::getLatestState(const std::string &key) const {
   auto it = states_.find(key);
   if (it != states_.end() && !it->second.empty()) {
-    // Return the last state 
+    // Return the last state
     return it->second.rbegin()->second;
   }
   return nullptr;
