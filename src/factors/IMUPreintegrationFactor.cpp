@@ -10,8 +10,8 @@
 IMUPreintegrationFactor::IMUPreintegrationFactor(IMUIncrement imu_increment_,
                                                  bool use_group_jacobians_,
                                                  const LieDirection &direction_)
-    : rmi{imu_increment_}, use_group_jacobians{use_group_jacobians_},
-      direction{direction_} {}
+    : rmi{imu_increment_},
+      use_group_jacobians{use_group_jacobians_}, direction{direction_} {}
 
 bool IMUPreintegrationFactor::Evaluate(double const *const *parameters,
                                        double *residuals,
@@ -63,7 +63,7 @@ bool IMUPreintegrationFactor::Evaluate(double const *const *parameters,
   // covariance = De_D_delta_xy * covariance * De_D_delta_xy.transpose();
   // covariance = 0.5 * (covariance + covariance.transpose());
 
-  Eigen::Matrix<double, 15, 15> sqrt_info = 
+  Eigen::Matrix<double, 15, 15> sqrt_info =
       computeSquareRootInformation(covariance);
 
   Eigen::Map<Eigen::Matrix<double, 15, 1>> residual(residuals);
@@ -223,14 +223,16 @@ IMUPreintegrationFactor::computeRawJacobiansLeft(
   double delta_t = rmi.end_stamp - rmi.start_stamp;
 
   // Jacobian of \Delta X^X with respect to X_i
-  Eigen::Matrix<double, 15, 15> xi_i_x = Eigen::Matrix<double, 15, 15>::Zero();
-  xi_i_x.block<3, 3>(0, 0) = -C_i.transpose();
-  xi_i_x.block<3, 3>(3, 0) = C_i.transpose() * SO3::cross(v_i);
-  xi_i_x.block<3, 3>(3, 3) = -C_i.transpose();
-  xi_i_x.block<3, 3>(6, 0) = C_i.transpose() * SO3::cross(r_i + v_i * delta_t);
-  xi_i_x.block<3, 3>(6, 3) = -delta_t * C_i.transpose();
-  xi_i_x.block<3, 3>(6, 6) = -C_i.transpose();
-  xi_i_x.block<6, 6>(9, 9) = -Eigen::Matrix<double, 6, 6>::Identity();
+  Eigen::Matrix<double, 15, 15> D_delta_xx_Xi =
+      Eigen::Matrix<double, 15, 15>::Zero();
+  D_delta_xx_Xi.block<3, 3>(0, 0) = -C_i.transpose();
+  D_delta_xx_Xi.block<3, 3>(3, 0) = C_i.transpose() * SO3::cross(v_i);
+  D_delta_xx_Xi.block<3, 3>(3, 3) = -C_i.transpose();
+  D_delta_xx_Xi.block<3, 3>(6, 0) =
+      C_i.transpose() * SO3::cross(r_i + v_i * delta_t);
+  D_delta_xx_Xi.block<3, 3>(6, 3) = -delta_t * C_i.transpose();
+  D_delta_xx_Xi.block<3, 3>(6, 6) = -C_i.transpose();
+  D_delta_xx_Xi.block<6, 6>(9, 9) = -Eigen::Matrix<double, 6, 6>::Identity();
 
   // Compute Jacobian of error w.r.t del_Xy
   Eigen::Matrix<double, 6, 1> dbias;
@@ -238,27 +240,30 @@ IMUPreintegrationFactor::computeRawJacobiansLeft(
   dbias.block<3, 1>(3, 0) = X_i.bias_accel - rmi.accel_bias;
   Eigen::Matrix<double, 9, 6> bias_jac = rmi.bias_jacobian;
   Eigen::Matrix<double, 9, 1> tau = bias_jac * dbias;
-  Eigen::Matrix<double, 9, 9> J_l_part = SE23::leftJacobian(bias_jac * dbias);
-  Eigen::Matrix<double, 9, 6> Ji_X_b = J_l_part * bias_jac;
 
+  Eigen::Matrix<double, 9, 6> Ji_X_b =
+      SE23::leftJacobian(bias_jac * dbias) * bias_jac;
   Eigen::Matrix<double, 15, 15> xi_i_y = Eigen::Matrix<double, 15, 15>::Zero();
-  xi_i_y.block<9, 6>(0, 9) = -Ji_X_b;
+  xi_i_y.block<9, 6>(0, 9) = Ji_X_b;
 
+  // If we want to include the group jacobians, need to compute
+  // the Jacobian of the error with respect to the delta_X^Y
+  // and delta_X^X
   Eigen::Matrix<double, 15, 15> De_D_delta_xy =
-      Eigen::Matrix<double, 15, 15>::Identity();
+      -Eigen::Matrix<double, 15, 15>::Identity();
   Eigen::Matrix<double, 15, 15> De_D_delta_xx =
       Eigen::Matrix<double, 15, 15>::Identity();
 
   if (use_group_jacobians) {
     Eigen::Matrix<double, 15, 1> error = computeRawError(X_i, X_j);
     Eigen::Matrix<double, 9, 1> e_nav = error.block<9, 1>(0, 0);
-    De_D_delta_xy.block<9, 9>(0, 0) = SE23::rightJacobianInverse(e_nav);
+
     De_D_delta_xx.block<9, 9>(0, 0) = SE23::leftJacobianInverse(e_nav);
-    std::cout << "Computed group Jacobians!" << std::endl;
+    De_D_delta_xy.block<9, 9>(0, 0) = -SE23::rightJacobianInverse(e_nav);
   }
 
   Eigen::Matrix<double, 15, 15> jac_i =
-      De_D_delta_xy * xi_i_y + De_D_delta_xx * xi_i_x;
+      De_D_delta_xy * xi_i_y + De_D_delta_xx * D_delta_xx_Xi;
 
   // Compute Jacobians of error w.r.t X_j
   Eigen::Matrix3d Jj_C_C = C_i.transpose();
@@ -317,10 +322,11 @@ IMUPreintegrationFactor::computeRawJacobiansRight(
   xi_i_y.block<9, 6>(0, 9) = Ji_X_b;
 
   // Jacobian of \Delta X^X with respect to X_j
-  Eigen::Matrix<double, 15, 15> jac_j = Eigen::Matrix<double, 15, 15>::Identity();
+  Eigen::Matrix<double, 15, 15> jac_j =
+      Eigen::Matrix<double, 15, 15>::Identity();
 
   Eigen::Matrix<double, 15, 15> De_D_delta_xy =
-      Eigen::Matrix<double, 15, 15>::Identity();
+      -Eigen::Matrix<double, 15, 15>::Identity();
   Eigen::Matrix<double, 15, 15> De_D_delta_xx =
       Eigen::Matrix<double, 15, 15>::Identity();
 

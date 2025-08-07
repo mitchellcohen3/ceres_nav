@@ -230,7 +230,7 @@ TEST_CASE("Test Preintegration Factor") {
     std::vector<Eigen::MatrixXd> numerical_jacobians;
     bool is_correct = ceres_nav::checkNumericalJacobians(
         factor, parameter_blocks, analytical_jacobians, numerical_jacobians,
-        ceres_nav::NumericalJacobianMethod::CENTRAL, 1e-6, false);
+        ceres_nav::NumericalJacobianMethod::CENTRAL, 1e-6, true);
 
 
     for (size_t i = 0; i < analytical_jacobians.size(); ++i) {
