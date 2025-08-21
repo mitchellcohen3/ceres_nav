@@ -36,7 +36,9 @@ class InertialNavigationExampleConfig:
     noise_active: bool = True
     gravity_mag = 9.80665
     lie_direction: str = "left"
-
+    # The state representation to use for the navigation state
+    # Options: "SE23" or "decoupled"
+    state_representation: str = "SE23"
     # Output direct and output file names
     output_dir: str = "unset_output_dir"
     gt_fname: str = "ground_truth.txt"

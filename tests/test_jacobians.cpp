@@ -22,6 +22,7 @@
 #include "lie/SE23.h"
 #include "lie/SO3.h"
 
+#include "lib/ExtendedPoseParameterBlock.h"
 #include "utils/CostFunctionUtils.h"
 
 TEST_CASE("Test AbsolutePositionFactor Jacobians") {
@@ -35,52 +36,63 @@ TEST_CASE("Test AbsolutePositionFactor Jacobians") {
   std::vector<LieDirection> directions = {LieDirection::left,
                                           LieDirection::right};
 
-  for (auto const &direction : directions) {
-    std::cout << "Testing AbsolutePositionFactor with direction: "
-              << (direction == LieDirection::left ? "left" : "right")
-              << std::endl;
+  std::vector<ExtendedPoseRepresentation> pose_types = {
+      ExtendedPoseRepresentation::SE23, ExtendedPoseRepresentation::Decoupled};
 
-    std::shared_ptr<AbsolutePositionFactor> factor =
-        std::make_shared<AbsolutePositionFactor>(measurement, direction,
-                                                 sqrt_info, "SE3", false);
-    REQUIRE(factor->num_residuals() == 3);
+  // Loop through each combination of pose type and Lie direction
+  for (auto const &pose_type : pose_types) {
+    for (auto const &direction : directions) {
+      std::cout << "Testing AbsolutePositionFactor with direction: "
+                << (direction == LieDirection::left ? "left" : "right")
+                << std::endl;
+      std::cout << "Pose type: "
+                << (pose_type == ExtendedPoseRepresentation::SE23 ? "SE23"
+                                                                  : "Decoupled")
+                << std::endl;
+      std::shared_ptr<AbsolutePositionFactor> factor =
+          std::make_shared<AbsolutePositionFactor>(measurement, direction,
+                                                   sqrt_info, false, pose_type);
+      REQUIRE(factor->num_residuals() == 3);
 
-    // Evaluate the factor with a pose parameter block
-    std::shared_ptr<PoseParameterBlock> pose_block =
-        std::make_shared<PoseParameterBlock>("test_pose", direction);
-    pose_block->setFromAttitudeAndPosition(attitude, position);
+      // Evaluate the factor with an ExtendedPoseParameterBlock
+      std::shared_ptr<ExtendedPoseParameterBlock> pose_block =
+          std::make_shared<ExtendedPoseParameterBlock>(pose_type, "test_pose",
+                                                       direction);
+      pose_block->setFromComponents(attitude, Eigen::Vector3d::Zero(),
+                                    position);
 
-    std::vector<std::shared_ptr<ParameterBlockBase>> parameter_blocks;
-    parameter_blocks.push_back(pose_block);
+      std::vector<std::shared_ptr<ParameterBlockBase>> parameter_blocks;
+      parameter_blocks.push_back(pose_block);
 
-    Eigen::VectorXd residuals(factor->num_residuals());
-    std::vector<Eigen::MatrixXd> jacobians;
+      Eigen::VectorXd residuals(factor->num_residuals());
+      std::vector<Eigen::MatrixXd> jacobians;
 
-    bool success = ceres_nav::evaluateCostFunction(factor, parameter_blocks,
-                                                   residuals, jacobians);
-    REQUIRE(success);
-    // Check the residuals
-    Eigen::Vector3d expected_residual = measurement - position;
-    REQUIRE(residuals.isApprox(expected_residual, 1e-6));
+      bool success = ceres_nav::evaluateCostFunction(factor, parameter_blocks,
+                                                     residuals, jacobians);
+      REQUIRE(success);
+      // Check the residuals
+      Eigen::Vector3d expected_residual = measurement - position;
+      REQUIRE(residuals.isApprox(expected_residual, 1e-6));
 
-    // Try numerically evaluating the Jacobians
-    std::vector<Eigen::MatrixXd> numerical_jacobians =
-        ceres_nav::computeNumericalJacobians(
-            factor, parameter_blocks, 1e-6,
-            ceres_nav::NumericalJacobianMethod::CENTRAL);
-    REQUIRE(numerical_jacobians.size() == jacobians.size());
+      // Try numerically evaluating the Jacobians
+      std::vector<Eigen::MatrixXd> numerical_jacobians =
+          ceres_nav::computeNumericalJacobians(
+              factor, parameter_blocks, 1e-6,
+              ceres_nav::NumericalJacobianMethod::CENTRAL);
+      REQUIRE(numerical_jacobians.size() == jacobians.size());
 
-    // Check the Jacobians numerically
-    std::vector<Eigen::MatrixXd> analytical_jacobians;
-    std::vector<Eigen::MatrixXd> numerical_jacs;
-    bool is_correct = ceres_nav::checkNumericalJacobians(
-        factor, parameter_blocks, analytical_jacobians, numerical_jacs,
-        ceres_nav::NumericalJacobianMethod::CENTRAL, 1e-6, false);
-    REQUIRE(is_correct);
+      // Check the Jacobians numerically
+      std::vector<Eigen::MatrixXd> analytical_jacobians;
+      std::vector<Eigen::MatrixXd> numerical_jacs;
+      bool is_correct = ceres_nav::checkNumericalJacobians(
+          factor, parameter_blocks, analytical_jacobians, numerical_jacs,
+          ceres_nav::NumericalJacobianMethod::CENTRAL, 1e-6, false);
+      REQUIRE(is_correct);
+    }
   }
 }
 
-TEST_CASE("Test RelativeLandmarkFactorJacobians") {
+TEST_CASE("RelativeLandmarkFactor") {
   Eigen::Matrix3d attitude = SO3::expMap(Eigen::Vector3d(0.5, -0.2, 0.3));
   Eigen::Vector3d position(2.0, 2.0, 3.0);
 
@@ -91,32 +103,39 @@ TEST_CASE("Test RelativeLandmarkFactorJacobians") {
 
   std::vector<LieDirection> directions = {LieDirection::left,
                                           LieDirection::right};
-  for (auto const &direction : directions) {
-    std::cout << "Testing RelativeLandmarkFactor with direction: "
-              << (direction == LieDirection::left ? "left" : "right")
-              << std::endl;
-    std::shared_ptr<RelativeLandmarkFactor> factor =
-        std::make_shared<RelativeLandmarkFactor>(meas, sqrt_info, 0.0, 1,
-                                                 direction, "SE3");
-    // Create parameter blocks to evaluate this factor at
-    std::shared_ptr<PoseParameterBlock> pose_block =
-        std::make_shared<PoseParameterBlock>("test_pose", direction);
-    pose_block->setFromAttitudeAndPosition(attitude, position);
-    std::shared_ptr<ParameterBlock<3>> landmark_block =
-        std::make_shared<ParameterBlock<3>>("landmark_1");
-    landmark_block->setEstimate(landmark_position);
 
-    std::vector<std::shared_ptr<ParameterBlockBase>> parameter_blocks;
-    parameter_blocks.push_back(pose_block);
-    parameter_blocks.push_back(landmark_block);
+  std::vector<ExtendedPoseRepresentation> pose_types = {
+      ExtendedPoseRepresentation::SE23, ExtendedPoseRepresentation::Decoupled};
 
-    // Check the Jacobians numerically
-    std::vector<Eigen::MatrixXd> analytical_jacobians;
-    std::vector<Eigen::MatrixXd> numerical_jacobians;
-    bool is_correct = ceres_nav::checkNumericalJacobians(
-        factor, parameter_blocks, analytical_jacobians, numerical_jacobians,
-        ceres_nav::NumericalJacobianMethod::CENTRAL, 1e-6, false);
-    REQUIRE(is_correct);
+  for (auto const &pose_type : pose_types) {
+    for (auto const &direction : directions) {
+      LOG(INFO) << "Testing RelativeLandmarkFactor with direction: "
+                << (direction == LieDirection::left ? "left" : "right");
+      std::shared_ptr<RelativeLandmarkFactor> factor =
+          std::make_shared<RelativeLandmarkFactor>(meas, sqrt_info, 0.0,
+                                                   direction, pose_type);
+      // Create parameter blocks to evaluate this factor at
+      std::shared_ptr<ExtendedPoseParameterBlock> pose_block =
+          std::make_shared<ExtendedPoseParameterBlock>(pose_type, "test_pose",
+                                                       direction);
+      pose_block->setFromComponents(attitude, Eigen::Vector3d::Zero(),
+                                    position);
+      std::shared_ptr<ParameterBlock<3>> landmark_block =
+          std::make_shared<ParameterBlock<3>>("landmark_1");
+      landmark_block->setEstimate(landmark_position);
+
+      std::vector<std::shared_ptr<ParameterBlockBase>> parameter_blocks;
+      parameter_blocks.push_back(pose_block);
+      parameter_blocks.push_back(landmark_block);
+
+      // Check the Jacobians numerically
+      std::vector<Eigen::MatrixXd> analytical_jacobians;
+      std::vector<Eigen::MatrixXd> numerical_jacobians;
+      bool is_correct = ceres_nav::checkNumericalJacobians(
+          factor, parameter_blocks, analytical_jacobians, numerical_jacobians,
+          ceres_nav::NumericalJacobianMethod::CENTRAL, 1e-6, false);
+      REQUIRE(is_correct);
+    }
   }
 }
 
@@ -190,17 +209,21 @@ TEST_CASE("Test Preintegration Factor") {
   Eigen::Matrix<double, 6, 1> b_j;
   b_j << 0.5, 0.6, 0.2, 0.2, 0.1, 0.4;
 
+  ExtendedPoseRepresentation rep_type = ExtendedPoseRepresentation::SE23;
+
   for (auto const &direction : directions) {
     std::cout << "Testing IMUPreintegrationFactor with direction: "
               << (direction == LieDirection::left ? "left" : "right")
               << std::endl;
     std::shared_ptr<ExtendedPoseParameterBlock> X_i_block =
-        std::make_shared<ExtendedPoseParameterBlock>(X_i, "X_i", direction);
+        std::make_shared<ExtendedPoseParameterBlock>(X_i, rep_type, "X_i",
+                                                     direction);
     std::shared_ptr<ParameterBlock<6>> b_i_block =
         std::make_shared<ParameterBlock<6>>(b_i, "b_i");
 
     std::shared_ptr<ExtendedPoseParameterBlock> X_j_block =
-        std::make_shared<ExtendedPoseParameterBlock>(X_j, "X_j", direction);
+        std::make_shared<ExtendedPoseParameterBlock>(X_j, rep_type, "X_j",
+                                                     direction);
     std::shared_ptr<ParameterBlock<6>> b_j_block =
         std::make_shared<ParameterBlock<6>>(b_j, "b_i");
 
@@ -212,7 +235,7 @@ TEST_CASE("Test Preintegration Factor") {
 
     // Create an IMU increment and propagate it forward
     IMUIncrement imu_increment(Q_ct, init_gyro_bias, init_accel_bias, 0.0,
-                               gravity, "continuous", direction);
+                               gravity, direction);
     for (int i = 0; i < num_imu_meas; ++i) {
       double dt = 0.01;
       Eigen::Vector3d omega = Eigen::Vector3d::Random();
@@ -232,12 +255,12 @@ TEST_CASE("Test Preintegration Factor") {
         factor, parameter_blocks, analytical_jacobians, numerical_jacobians,
         ceres_nav::NumericalJacobianMethod::CENTRAL, 1e-6, true);
 
-
     for (size_t i = 0; i < analytical_jacobians.size(); ++i) {
-        Eigen::MatrixXd difference =
-            analytical_jacobians[i] - numerical_jacobians[i];
-        double norm = difference.norm();
-        std::cout << "Jacobian " << i << " norm difference: " << norm  << std::endl;
+      Eigen::MatrixXd difference =
+          analytical_jacobians[i] - numerical_jacobians[i];
+      double norm = difference.norm();
+      std::cout << "Jacobian " << i << " norm difference: " << norm
+                << std::endl;
     }
     // REQUIRE(is_correct);
   }

@@ -20,7 +20,11 @@ class IMUPreintegrationFactor
 public:
   IMUIncrement rmi;
   bool use_group_jacobians;
+
+  // Navigation state representation options
+  // This is used to determine how the Jacobians are computed
   LieDirection direction;
+  ExtendedPoseRepresentation pose_rep = ExtendedPoseRepresentation::SE23;
 
   /*
    * @brief Default constructor
@@ -51,9 +55,14 @@ public:
                       const IMUStateHolder &X_j) const;
 
   std::vector<Eigen::Matrix<double, 15, 15>>
-  computeRawJacobiansLeft(const IMUStateHolder &X_i, const IMUStateHolder &X_j) const;
+  computeRawJacobiansLeftSE23(const IMUStateHolder &X_i,
+                              const IMUStateHolder &X_j) const;
 
   std::vector<Eigen::Matrix<double, 15, 15>>
-  computeRawJacobiansRight(const IMUStateHolder &X_i,
-                           const IMUStateHolder &X_j) const;
+  computeRawJacobiansRightSE23(const IMUStateHolder &X_i,
+                               const IMUStateHolder &X_j) const;
+
+  std::vector<Eigen::Matrix<double, 15, 15>>
+  computeRawJacobiansRightDecoupled(const IMUStateHolder &X_i,
+                                    const IMUStateHolder &X_j) const;
 };

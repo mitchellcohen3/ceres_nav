@@ -59,3 +59,32 @@ Eigen::VectorXd flattenMatrix(const Eigen::MatrixXd &matrix) {
   // Use Eigen::Map for efficient memory mapping without copying data
   return Eigen::Map<const Eigen::VectorXd>(matrix.data(), matrix.size());
 }
+
+void discretizeSystem(const Eigen::MatrixXd &A_ct, const Eigen::MatrixXd &L_ct,
+                      const Eigen::MatrixXd &Q_ct, double dt,
+                      Eigen::MatrixXd &A_d, Eigen::MatrixXd &Q_d,
+                      DiscretizationMethod method) {
+  // Compute discrete-time A matrix
+  Eigen::MatrixXd A_dt = A_ct * dt;
+  Eigen::MatrixXd A_dt_square = A_dt * A_dt;
+  Eigen::MatrixXd A_dt_cube = A_dt_square * A_dt;
+
+  A_d = Eigen::MatrixXd::Identity(A_ct.rows(), A_ct.cols()) + A_dt +
+        0.5 * A_dt_square + (1.0 / 6.0) * A_dt_cube;
+
+  // Compute the discrete-time noise covariance
+  if (method == DiscretizationMethod::TaylorSeries) {
+    Eigen::Matrix<double, 15, 15> Q = L_ct * Q_ct * L_ct.transpose();
+    Eigen::Matrix<double, 15, 15> first_term = Q * dt;
+    Eigen::Matrix<double, 15, 15> second_term =
+        (A_ct * Q + Q * A_ct.transpose()) * (dt * dt) / 2.0;
+    Eigen::Matrix<double, 15, 15> third_term =
+        (A_ct * A_ct * Q + 2.0 * A_ct * Q * A_ct.transpose() +
+         Q * A_ct.transpose() * A_ct.transpose()) *
+        (dt * dt * dt) / 6.0;
+    Q_d = first_term + second_term + third_term;
+    Q_d = 0.5 * (Q_d + Q_d.transpose());
+  } else {
+    throw std::invalid_argument("Unsupported discretization method");
+  }
+}

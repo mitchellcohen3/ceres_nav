@@ -36,6 +36,7 @@ po::variables_map handle_args(int argc, const char *argv[]) {
     ("output_dir", po::value<std::string>()->default_value("/tmp/"), "Output directory for results")
     ("lie_direction", po::value<std::string>()->required(), "Lie direction to run (left or right)")
     ("estimator_type", po::value<std::string>()->default_value("full_batch"), "Estimator type (full_batch or sliding_window)")
+    ("state_representation", po::value<std::string>()->default_value("SE23"), "State representation to use (SE23 or decoupled)")
     ("sliding_window_size", po::value<int>()->default_value(10), "Number of states to keep in sliding window, unused for full batch");
   // clang-format on
 
@@ -67,6 +68,7 @@ void runSlidingWindowEstimator(
     const std::vector<IMUMessage> &imu_data,
     const std::vector<GPSMessage> &gps_data, const IMUState &init_imu_state,
     const Eigen::Matrix<double, 15, 15> &init_cov, LieDirection lie_direction,
+    ExtendedPoseRepresentation state_rep,
     const Eigen::Matrix<double, 12, 12> &Q_ct, const Eigen::Matrix3d &R_gps,
     const Eigen::Vector3d &gravity, const std::string &est_imu_file,
     const std::string &cov_file, int window_size) {
@@ -89,7 +91,7 @@ void runSlidingWindowEstimator(
   // Create the initial IMU increment
   IMUIncrement imu_increment(
       Q_ct, init_imu_state.gyroBias(), init_imu_state.accelBias(),
-      init_imu_state.timestamp(), gravity, "continuous", lie_direction);
+      init_imu_state.timestamp(), gravity, lie_direction);
   IMUState cur_imu_state = init_imu_state;
   double prev_gps_timestamp = gps_data[0].timestamp;
   std::vector<double> est_stamps;
@@ -102,6 +104,8 @@ void runSlidingWindowEstimator(
   for (size_t gps_index = 1; gps_index < gps_data.size(); gps_index++) {
     double cur_gps_timestamp = gps_data[gps_index].timestamp;
 
+    LOG(INFO) << "Processing GPS measurement at timestamp: "
+              << cur_gps_timestamp;
     // Integrate IMU data between prev_gps_timestamp and current gps timestamp
     imu_increment.reset(prev_gps_timestamp, cur_imu_state.gyroBias(),
                         cur_imu_state.accelBias());
@@ -122,7 +126,6 @@ void runSlidingWindowEstimator(
                                                 lie_direction, keys);
     factor_graph_utils::addGPSFactor(graph, gps_data[gps_index], lie_direction,
                                      R_gps, keys);
-
     // If we've reached the window size, optimize the graph and marginalize the
     // oldest state
     if (graph.getStates().getNumStatesForType(keys.nav_state_key) >=
@@ -168,6 +171,7 @@ void runFullBatchEstimator(
     const std::vector<IMUMessage> &imu_data,
     const std::vector<GPSMessage> &gps_data, const IMUState &init_imu_state,
     const Eigen::Matrix<double, 15, 15> &init_cov, LieDirection lie_direction,
+    ExtendedPoseRepresentation state_rep,
     const Eigen::Matrix<double, 12, 12> &Q_ct, const Eigen::Matrix3d &R_gps,
     const Eigen::Vector3d &gravity, const std::string &est_imu_file,
     const std::string &cov_file) {
@@ -185,7 +189,7 @@ void runFullBatchEstimator(
   size_t imu_idx = 0;
   IMUIncrement imu_increment(
       Q_ct, init_imu_state.gyroBias(), init_imu_state.accelBias(),
-      init_imu_state.timestamp(), gravity, "continuous", lie_direction);
+      init_imu_state.timestamp(), gravity, lie_direction);
 
   IMUState cur_imu_state = init_imu_state;
   double prev_gps_timestamp = gps_data[0].timestamp;
@@ -287,6 +291,17 @@ int main(int argc, const char **argv) {
     return -1;
   }
 
+  ExtendedPoseRepresentation state_rep;
+  if (args["state_representation"].as<std::string>() == "SE23") {
+    state_rep = ExtendedPoseRepresentation::SE23;
+  } else if (args["state_representation"].as<std::string>() == "decoupled") {
+    state_rep = ExtendedPoseRepresentation::Decoupled;
+  } else {
+    LOG(ERROR)
+        << "Invalid state representation specified. Use 'SE23' or 'decoupled'.";
+    return -1;
+  }
+
   // Continuous-time IMU noise
   double sigma_gyro = args["sigma_gyro_continuous"].as<double>();
   double sigma_accel = args["sigma_accel_continuous"].as<double>();
@@ -329,14 +344,15 @@ int main(int argc, const char **argv) {
       Eigen::Matrix<double, 15, 15>::Identity() * 1e-6; // Small covariance
   if (estimator_type == "full_batch") {
     runFullBatchEstimator(imu_data, gps_data, init_imu_state, init_cov,
-                          lie_direction, Q_ct, R_gps, gravity,
+                          lie_direction, state_rep, Q_ct, R_gps, gravity,
                           est_imu_states_file, cov_file);
   } else {
     int sliding_window_size = args["sliding_window_size"].as<int>();
     LOG(INFO) << "Using sliding window size: " << sliding_window_size;
-    runSlidingWindowEstimator(
-        imu_data, gps_data, init_imu_state, init_cov, lie_direction, Q_ct,
-        R_gps, gravity, est_imu_states_file, cov_file, sliding_window_size);
+    runSlidingWindowEstimator(imu_data, gps_data, init_imu_state, init_cov,
+                              lie_direction, state_rep, Q_ct, R_gps, gravity,
+                              est_imu_states_file, cov_file,
+                              sliding_window_size);
   }
 
   return 0;
