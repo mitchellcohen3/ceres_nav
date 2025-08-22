@@ -22,7 +22,7 @@ Eigen::Matrix<double, 9, 1> SE23::logMap(const Eigen::MatrixXd &X) {
   SE23::toComponents(X, C, v, r);
 
   Eigen::Vector3d phi = SO3::logMap(C);
-  Eigen::Matrix3d J_left_inv = SO3::leftJacobianInv(phi);
+  Eigen::Matrix3d J_left_inv = SO3::leftJacobianInverse(phi);
 
   Eigen::Matrix<double, 9, 1> xi;
   xi.block<3, 1>(0, 0) = phi;
@@ -120,7 +120,7 @@ SE23::leftJacobianInverse(const Eigen::VectorXd &x) {
   } else {
     Eigen::Vector3d xi_v{x.block<3, 1>(3, 0)};
     Eigen::Vector3d xi_r{x.block<3, 1>(6, 0)};
-    Eigen::Matrix3d Jinv{SO3::leftJacobianInv(x.block<3, 1>(0, 0))};
+    Eigen::Matrix3d Jinv{SO3::leftJacobianInverse(x.block<3, 1>(0, 0))};
     Eigen::Matrix3d Q_v{leftJacobianQMatrix(phi, xi_v)};
     Eigen::Matrix3d Q_r{leftJacobianQMatrix(phi, xi_r)};
 

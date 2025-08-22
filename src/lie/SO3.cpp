@@ -123,7 +123,7 @@ Eigen::Matrix3d SO3::leftJacobian(const Eigen::Vector3d &phi) {
  * the paper by Joan Sola is numerically equivalent to the form implemented
  * here.
  */
-Eigen::Matrix3d SO3::leftJacobianInv(const Eigen::Vector3d &phi) {
+Eigen::Matrix3d SO3::leftJacobianInverse(const Eigen::Vector3d &phi) {
   double angle = phi.norm();
   double A;
 
@@ -153,7 +153,7 @@ Eigen::Matrix3d SO3::leftJacobianInv(const Eigen::Vector3d &phi) {
  * section 7.1.5 of "State Estimation for Robotics" by T. Barfoot is used,
  * which says that J^r (phi) = J^left (-phi).
  */
-Eigen::Matrix3d SO3::computeJRight(const Eigen::Vector3d &phi) {
+Eigen::Matrix3d SO3::rightJacobian(const Eigen::Vector3d &phi) {
   // Equation (7.87) of "State Estimation for Robotics".
   return SO3::leftJacobian(-phi);
 }
@@ -163,8 +163,8 @@ Eigen::Matrix3d SO3::computeJRight(const Eigen::Vector3d &phi) {
  * The relationship between the left and right inverse JAcobians is once again
  * used.
  */
-Eigen::Matrix3d SO3::computeJRightInv(const Eigen::Vector3d &phi) {
-  return SO3::leftJacobianInv(-phi);
+Eigen::Matrix3d SO3::rightJacobianInverse(const Eigen::Vector3d &phi) {
+  return SO3::leftJacobianInverse(-phi);
 }
 
 Eigen::Vector3d SO3::toEuler(const Eigen::Matrix3d &C) {
