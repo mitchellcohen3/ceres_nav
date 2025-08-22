@@ -31,9 +31,10 @@ public:
    * Class constructor - each IMU factor needs an interoceptive measurement, a
    * time, and a continuous-time noise matrix.
    */
-  IMUPreintegrationFactor(IMUIncrement imu_increment_,
-                          bool use_group_jacobians_,
-                          const LieDirection &direction_);
+  IMUPreintegrationFactor(
+      IMUIncrement imu_increment_, bool use_group_jacobians_,
+      const LieDirection &direction_,
+      ExtendedPoseRepresentation pose_rep_ = ExtendedPoseRepresentation::SE23);
 
   IMUPreintegrationFactor() = delete;
   /**

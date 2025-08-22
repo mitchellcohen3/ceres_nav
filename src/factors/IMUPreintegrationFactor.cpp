@@ -7,11 +7,11 @@
 
 #include <glog/logging.h>
 
-IMUPreintegrationFactor::IMUPreintegrationFactor(IMUIncrement imu_increment_,
-                                                 bool use_group_jacobians_,
-                                                 const LieDirection &direction_)
-    : rmi{imu_increment_},
-      use_group_jacobians{use_group_jacobians_}, direction{direction_} {}
+IMUPreintegrationFactor::IMUPreintegrationFactor(
+    IMUIncrement imu_increment_, bool use_group_jacobians_,
+    const LieDirection &direction_, ExtendedPoseRepresentation pose_rep_)
+    : rmi{imu_increment_}, use_group_jacobians{use_group_jacobians_},
+      direction{direction_}, pose_rep{pose_rep_} {}
 
 bool IMUPreintegrationFactor::Evaluate(double const *const *parameters,
                                        double *residuals,
@@ -130,11 +130,14 @@ IMUPreintegrationFactor::computeRawError(const IMUStateHolder &X_i,
   // Get predicted RMI based on states and form the error
   Eigen::Matrix<double, 5, 5> Y_pred = predictNavRMI(X_i, X_j);
 
-  // Compute the error in the navigation state
+  // Compute the error on the navigation RMI
   Eigen::Matrix<double, 9, 1> e_nav = Eigen::Matrix<double, 9, 1>::Zero();
   if (pose_rep == ExtendedPoseRepresentation::SE23) {
+    // If we're using SE_2(3) representation, compute the error between the
+    // predicted and measured RMI on SE_2(3)
     e_nav = SE23::minus(Y_pred, Y_meas, direction);
   } else if (pose_rep == ExtendedPoseRepresentation::Decoupled) {
+    // Else, we compute the error using the decoupled representation
     e_nav.block<3, 1>(0, 0) = SO3::minus(Y_pred.block<3, 3>(0, 0),
                                          Y_meas.block<3, 3>(0, 0), direction);
     e_nav.block<3, 1>(3, 0) =
@@ -156,8 +159,10 @@ IMUPreintegrationFactor::computeRawError(const IMUStateHolder &X_i,
 Eigen::Matrix<double, 5, 5>
 IMUPreintegrationFactor::getUpdatedRMI(const IMUStateHolder &X_i) const {
   Eigen::Matrix<double, 6, 1> dbias;
-  dbias.block<3, 1>(0, 0) = X_i.bias_gyro - rmi.gyro_bias;
-  dbias.block<3, 1>(3, 0) = X_i.bias_accel - rmi.accel_bias;
+  Eigen::Vector3d d_bg = X_i.bias_gyro - rmi.gyro_bias;
+  Eigen::Vector3d d_ba = X_i.bias_accel - rmi.accel_bias;
+  dbias.block<3, 1>(0, 0) = d_bg;
+  dbias.block<3, 1>(3, 0) = d_ba;
 
   Eigen::Matrix<double, 5, 5> delta_X = Eigen::Matrix<double, 5, 5>::Identity();
   delta_X.block<3, 3>(0, 0) = rmi.delta_U.block<3, 3>(0, 0);
@@ -178,18 +183,43 @@ IMUPreintegrationFactor::getUpdatedRMI(const IMUStateHolder &X_i) const {
   }
 
   // Perform first-order bias correct for decoupled representation
+  // This corresponds to the scheme presented in "On-Manifold Preintegration for
+  // Real-Time "Visual–Inertial Odometry" by Forster et al. (2017). (see
+  // equation (44))
   else if (pose_rep == ExtendedPoseRepresentation::Decoupled) {
-    if (direction == LieDirection::left) {
-      LOG(INFO) << "Left Jacobians not implemented for decoupled navigation "
-                   "state representation.";
-    } else if (direction == LieDirection::right) {
+    // Extract subcomponents
+    Eigen::Matrix3d delta_C = delta_X.block<3, 3>(0, 0);
+    Eigen::Vector3d delta_v = delta_X.block<3, 1>(0, 3);
+    Eigen::Vector3d delta_r = delta_X.block<3, 1>(0, 4);
 
-      // Update each component of delta_X matrix separately
-      // return delta_X * SO3::expMap(rmi.bias_jacobian.block<3, 6>(0, 0) * dbias);
-    } else {
-      LOG(INFO) << "Unknown Lie direction for decoupled navigation state "
-                   "representation.";
+    // Extract relevant parts of the bias Jacobian
+    Eigen::Matrix3d dC_dbg = rmi.bias_jacobian.block<3, 3>(0, 0);
+
+    Eigen::Matrix<double, 3, 6> dv_db = rmi.bias_jacobian.block<3, 6>(3, 0);
+    Eigen::Matrix<double, 3, 6> dr_db = rmi.bias_jacobian.block<3, 6>(6, 0);
+
+    Eigen::Vector3d delta_v_updated = delta_v + dv_db * dbias;
+    Eigen::Vector3d delta_r_updated = delta_r + dr_db * dbias;
+
+    Eigen::Matrix3d delta_C_updated;
+    // Update delta_C with the correct perturbation
+    if (direction == LieDirection::left) {
+      delta_C_updated = SO3::expMap(dC_dbg * d_bg) * delta_C;
+    } else if (direction == LieDirection::right) {
+      // Perform first-order correction
+      delta_C_updated = delta_C * SO3::expMap(dC_dbg * d_bg);
     }
+    // Assemble the updated delta_X matrix
+    Eigen::Matrix<double, 5, 5> delta_X_updated =
+        Eigen::Matrix<double, 5, 5>::Identity();
+    delta_X_updated.block<3, 3>(0, 0) = delta_C_updated;
+    delta_X_updated.block<3, 1>(0, 3) = delta_v_updated;
+    delta_X_updated.block<3, 1>(0, 4) = delta_r_updated;
+    return delta_X_updated;
+  }
+  else {
+    LOG(ERROR) << "Unknown ExtendedPoseRepresentation type!";
+    return Eigen::Matrix<double, 5, 5>::Identity();
   }
 }
 
@@ -401,23 +431,29 @@ IMUPreintegrationFactor::computeRawJacobiansRightDecoupled(
   Eigen::Matrix3d C_i = X_i.attitude;
 
   // Compute Jacobian of \Delta_X^X with respect to X_i
-  Eigen::Matrix<double, 15, 15> xi_i_x = Eigen::Matrix<double, 15, 15>::Zero();
-  xi_i_x.block<3, 3>(0, 0) = -del_Xx_C.transpose();
-  xi_i_x.block<3, 3>(3, 0) = SO3::cross(del_Xx_v);
-  xi_i_x.block<3, 3>(3, 3) = -C_i.transpose();
-  xi_i_x.block<3, 3>(6, 0) = SO3::cross(del_Xx_r);
-  xi_i_x.block<3, 3>(6, 3) = -delta_t * C_i.transpose();
-  xi_i_x.block<3, 3>(6, 6) = -C_i.transpose();
-  xi_i_x.block<6, 6>(9, 9) = -Eigen::Matrix<double, 6, 6>::Identity();
+  Eigen::Matrix<double, 15, 15> D_delta_xx_Xi =
+      Eigen::Matrix<double, 15, 15>::Zero();
+  D_delta_xx_Xi.block<3, 3>(0, 0) = -del_Xx_C.transpose();
+  D_delta_xx_Xi.block<3, 3>(3, 0) = SO3::cross(del_Xx_v);
+  D_delta_xx_Xi.block<3, 3>(3, 3) = -C_i.transpose();
+  D_delta_xx_Xi.block<3, 3>(6, 0) = SO3::cross(del_Xx_r);
+  D_delta_xx_Xi.block<3, 3>(6, 3) = -delta_t * C_i.transpose();
+  D_delta_xx_Xi.block<3, 3>(6, 6) = -C_i.transpose();
+  D_delta_xx_Xi.block<6, 6>(9, 9) = -Eigen::Matrix<double, 6, 6>::Identity();
 
-  // Compute Jacobian of error with respect to \Delta_X^Y
-  Eigen::Matrix<double, 15, 15> xi_i_y = Eigen::Matrix<double, 15, 15>::Zero();
+  // Compute Jacobian of \Delta_X^Y with respect to X_i
+  // We need the bias Jacobian here
+  Eigen::Matrix<double, 9, 6> bias_jac = rmi.bias_jacobian;
+
+  Eigen::Matrix<double, 15, 15> D_delta_xy_Xi =
+      Eigen::Matrix<double, 15, 15>::Zero();
+  D_delta_xy_Xi.block<9, 6>(0, 9) = bias_jac;
 
   // Compute Jacobian of \Delta X^X with respect to X_j
-  Eigen::Matrix<double, 15, 15> xi_j_x =
+  Eigen::Matrix<double, 15, 15> D_delta_xx_Xj =
       Eigen::Matrix<double, 15, 15>::Identity();
-  xi_j_x.block<3, 3>(3, 3) = C_i.transpose();
-  xi_j_x.block<3, 3>(6, 6) = C_i.transpose();
+  D_delta_xx_Xj.block<3, 3>(3, 3) = C_i.transpose();
+  D_delta_xx_Xj.block<3, 3>(6, 6) = C_i.transpose();
 
   // Group Jacobians
   Eigen::Matrix<double, 15, 15> De_D_delta_xy =
@@ -426,13 +462,16 @@ IMUPreintegrationFactor::computeRawJacobiansRightDecoupled(
       Eigen::Matrix<double, 15, 15>::Identity();
 
   if (use_group_jacobians) {
-    LOG(INFO) << "Group Jacobians not implemented for decoupled navigation "
-                 "state representation.";
+    Eigen::Matrix<double, 15, 1> error = computeRawError(X_i, X_j);
+    Eigen::Matrix<double, 3, 1> e_att = error.block<3, 1>(0, 0);
+
+    De_D_delta_xx.block<3, 3>(0, 0) = SO3::rightJacobianInverse(e_att);
+    De_D_delta_xy.block<3, 3>(0, 0) = -SO3::leftJacobianInverse(e_att);
   }
 
   Eigen::Matrix<double, 15, 15> jac_i =
-      De_D_delta_xy * xi_i_y + De_D_delta_xx * xi_i_x;
-  Eigen::Matrix<double, 15, 15> jac_j = De_D_delta_xx * xi_j_x;
+      De_D_delta_xx * D_delta_xx_Xi + De_D_delta_xy * D_delta_xy_Xi;
+  Eigen::Matrix<double, 15, 15> jac_j = De_D_delta_xx * D_delta_xx_Xj;
 
   std::vector<Eigen::Matrix<double, 15, 15>> raw_jacobians;
   raw_jacobians.push_back(jac_i);

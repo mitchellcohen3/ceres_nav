@@ -87,8 +87,6 @@ void IMUIncrement::propagateCovarianceAndBiasJacobian(
     computeContinuousTimeJacobiansSE23(C, v, r, omega, accel, A_ct, L_ct);
   } else if (pose_rep == ExtendedPoseRepresentation::Decoupled) {
     computeContinuousTimeJacobiansDecoupled(C, v, r, omega, accel, A_ct, L_ct);
-    LOG(WARNING) << "Decoupled representation is not fully implemented yet. "
-                 << "Using SE23 representation for now.";
   } else {
     LOG(FATAL) << "Unknown pose representation: " << static_cast<int>(pose_rep);
   }
@@ -120,7 +118,7 @@ void IMUIncrement::computeContinuousTimeJacobiansDecoupled(
 
   if (direction == LieDirection::left) {
     LOG(INFO) << "Left lie direction for decoupled navigation state "
-                 "representation not yet supported!"; 
+                 "representation not yet supported with IMU increment!"; 
   } else if (direction == LieDirection::right) {
     Eigen::Vector3d unbiased_gyro = omega - gyro_bias;
     Eigen::Vector3d unbiased_accel = accel - accel_bias;

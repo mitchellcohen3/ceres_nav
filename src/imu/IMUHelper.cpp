@@ -73,7 +73,7 @@ Eigen::Matrix<double, 9, 6> createLMatrix(const Eigen::Vector3d &unbiased_gyro,
   Eigen::Vector3d om = unbiased_gyro;
   Eigen::Vector3d om_dt = om * dt;
   Eigen::Matrix3d J_att_inv_times_N =
-      SO3::leftJacobianInv(om_dt) * createNMatrix(om_dt);
+      SO3::leftJacobianInverse(om_dt) * createNMatrix(om_dt);
   Eigen::VectorXd xi(9);
   xi.segment<3>(0) = dt * om;
   xi.segment<3>(3) = dt * a;
