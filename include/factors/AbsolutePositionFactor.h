@@ -4,14 +4,13 @@
 #include <ceres/ceres.h>
 #include <vector>
 
-#include "lie/LieDirection.h"
 #include "lib/ExtendedPoseParameterBlock.h"
+#include "lie/LieDirection.h"
 
 class AbsolutePositionFactor : public ceres::SizedCostFunction<3, 15> {
 public:
   Eigen::Vector3d meas;
   Eigen::Matrix3d sqrt_info;
-  bool print_debug = false;
 
   // Pose representation options
   ExtendedPoseRepresentation pose_type = ExtendedPoseRepresentation::SE23;
@@ -19,10 +18,10 @@ public:
 
   AbsolutePositionFactor(
       const Eigen::Vector3d &meas_, const LieDirection &direction_,
-      const Eigen::Matrix3d &sqrt_info_, bool print_debug_ = false,
+      const Eigen::Matrix3d &sqrt_info_,
       ExtendedPoseRepresentation pose_type_ = ExtendedPoseRepresentation::SE23)
       : meas{meas_}, direction{direction_}, sqrt_info{sqrt_info_},
-        print_debug{print_debug_}, pose_type{pose_type_} {}
+        pose_type{pose_type_} {}
 
   /**
    * @brief Residual and Jacobian computation

@@ -11,6 +11,7 @@ from navlie.lib.imu import IMU, IMUState
 from navlie.types import Measurement, StateWithCovariance
 from navlie.utils import associate_stamps, GaussianResultList, plot_error, plot_poses
 from pymlg import SO3, SE23
+import argparse
 
 cur_dir = os.path.abspath(os.path.dirname(__file__))
 
@@ -22,6 +23,22 @@ plt.rc("grid", linestyle="--")
 # plt.rcParams.update({"font.size": 14})
 plt.rc("text", usetex=True)
 colors = sns.color_palette("deep")
+
+
+def parse_args():
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(description="Run GPS/IMU fusion example.")
+    parser.add_argument("--lie_direction", type=str, default="left")
+    parser.add_argument("--state_representation", type=str, default="SE23")
+    parser.add_argument(
+        "--estimator_type",
+        type=str,
+        default="sliding_window",
+        choices=["full_batch", "sliding_window"],
+        help="Type of estimator to use for the example.",
+    )
+    return parser.parse_args()
+
 
 @dataclass
 class InertialNavigationExampleConfig:
@@ -48,6 +65,11 @@ class InertialNavigationExampleConfig:
     init_imu_fname: str = "init_imu_states.txt"
     est_imu_fname: str = "optimized_imu_states.txt"
 
+    # Whether or not to run the example with a sliding window
+    # or full batch estimator.
+    estimator_type: str = "sliding_window"  # "full_batch" or "sliding_window"
+
+
 def load_imu_states_from_asl(file_path: str) -> typing.List[IMUState]:
     """Loads IMU states from a text file in the ASL format."""
     data = np.loadtxt(file_path, delimiter=",")
@@ -72,9 +94,10 @@ def load_imu_states_from_asl(file_path: str) -> typing.List[IMUState]:
         imu_states.append(imu_state)
     return imu_states
 
+
 def load_covariances_from_file(file: str, dof: int) -> typing.List[np.ndarray]:
     """Loads the full covariances from a file, where each row of the file is
-    assumed to have a timestmap and the covariance entries in column major order.""" 
+    assumed to have a timestmap and the covariance entries in column major order."""
     cov_mats_file_np = np.loadtxt(file, delimiter=",")
     cov_mats: typing.List[np.ndarray] = []
     stamps: typing.List[float] = []
@@ -83,6 +106,7 @@ def load_covariances_from_file(file: str, dof: int) -> typing.List[np.ndarray]:
         stamps.append(row[0])
 
     return cov_mats, stamps
+
 
 def write_imu_states_to_asl(
     imu_state_list: typing.List[IMUState],
@@ -206,7 +230,6 @@ def run_gps_imu_fusion(
     config: InertialNavigationExampleConfig,
     executable_path: str,
     data_fpaths: typing.Dict[str, str],
-    estimator_type: str = "full_batch"
 ):
     """Runs the GPS/IMU sliding window filter example."""
     # Run example
@@ -248,23 +271,31 @@ def run_gps_imu_fusion(
         "--output_dir",
         config.output_dir,
         "--estimator_type",
-        estimator_type,
+        config.estimator_type,
     ]
 
     cmd.extend(args)
 
     try:
-        print("Trying to run command")
         result = subprocess.run(cmd, check=True)
-        print("Command executed successfully.")
     except subprocess.CalledProcessError as e:
         print(f"An error occurred while running the executable: {e}")
     except FileNotFoundError as e:
         print(f"File not found: {e}")
 
 
-def evaluate_imu_states(est_file: str, gt_file: str, cov_file: str):
-    """Evaluates the IMU states against the ground truth."""
+def evaluate_imu_states(
+    est_file: str,
+    gt_file: str,
+    cov_file: str,
+    lie_direction: str,
+    state_representation: str,
+):
+    """Evaluates the IMU states against the ground truth.
+
+    Here we need to know the Lie direction and state representation to
+    compute errors correctly.
+    """
     gt_states = load_imu_states_from_asl(gt_file)
     est_states = load_imu_states_from_asl(est_file)
     covariances, cov_stamps = load_covariances_from_file(cov_file, 15)
@@ -282,12 +313,16 @@ def evaluate_imu_states(est_file: str, gt_file: str, cov_file: str):
 
     est_list: typing.List[IMUState] = []
     gt_list: typing.List[IMUState] = []
-    init_list: typing.List[IMUState] = []
     cov_list: typing.List[np.ndarray] = []
     for match in matches:
         gt_list.append(gt_states[match[1]])
         est_list.append(est_states[match[0]])
         cov_list.append(covariances[match[0]])
+
+    # Change the Lie direction of the IMU states
+    for x, x_est in zip(gt_list, est_list):
+        x.direction = lie_direction
+        x_est.direction = lie_direction
 
     # Postprocess the results and plot
     state_with_cov: typing.List[StateWithCovariance] = []
@@ -296,7 +331,9 @@ def evaluate_imu_states(est_file: str, gt_file: str, cov_file: str):
     results = GaussianResultList.from_estimates(state_with_cov, gt_list)
 
     fig, ax = plot_error(results)
-    fig.suptitle("IMU State Error")
+    fig.suptitle(
+        f"IMU State Errors for Lie Direction {lie_direction} and State Representation {state_representation}"
+    )
 
     # Plot the poses on a graph
     fig, ax = plot_poses(est_list, line_color="tab:blue", label="Estimated", step=None)
@@ -308,22 +345,32 @@ def evaluate_imu_states(est_file: str, gt_file: str, cov_file: str):
     ax.legend()
     plt.tight_layout()
 
-    plt.show()
-
 
 if __name__ == "__main__":
-    estimator_type = "sliding_window"  # full_batch or sliding_window
+    args = parse_args()
     save_dir = os.path.join(cur_dir, "gps_imu_fusion_example")
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
-    config = InertialNavigationExampleConfig(output_dir=save_dir)
-
-    data_fpaths = generate_and_save_data(config, save_dir)
-
-    # Run the sliding window filter example!
+    config = InertialNavigationExampleConfig(
+        output_dir=save_dir,
+        lie_direction=args.lie_direction,
+        state_representation=args.state_representation,
+        estimator_type=args.estimator_type,
+    )
     executable_path = os.path.join(cur_dir, "../../build/examples/gps_imu_example")
-    run_gps_imu_fusion(config, executable_path, data_fpaths, estimator_type)
+
+    config.lie_direction = "left"
+    # Generate data an run the example
+    data_fpaths = generate_and_save_data(config, save_dir)
+    run_gps_imu_fusion(config, executable_path, data_fpaths)
 
     est_file = os.path.join(save_dir, "optimized_imu_states.txt")
     cov_file = os.path.join(save_dir, "covariances.txt")
-    evaluate_imu_states(est_file, data_fpaths["ground_truth"], cov_file)
+    evaluate_imu_states(
+        est_file,
+        data_fpaths["ground_truth"],
+        cov_file,
+        config.lie_direction,
+        config.state_representation,
+    )
+    plt.show()

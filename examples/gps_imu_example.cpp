@@ -84,9 +84,9 @@ void runSlidingWindowEstimator(
   factor_graph_utils::ProblemKeys keys;
 
   // Add the first IMU state to the graph and add a prior factor
-  factor_graph_utils::addIMUState(graph, init_imu_state, lie_direction);
+  factor_graph_utils::addIMUState(graph, init_imu_state, lie_direction, state_rep);
   factor_graph_utils::addPriorFactor(graph, init_imu_state, init_cov,
-                                     lie_direction, keys);
+                                     lie_direction, state_rep, keys);
 
   // Create the initial IMU increment
   IMUIncrement imu_increment(
@@ -103,9 +103,6 @@ void runSlidingWindowEstimator(
   LOG(INFO) << "Running sliding window filter...";
   for (size_t gps_index = 1; gps_index < gps_data.size(); gps_index++) {
     double cur_gps_timestamp = gps_data[gps_index].timestamp;
-
-    LOG(INFO) << "Processing GPS measurement at timestamp: "
-              << cur_gps_timestamp;
     // Integrate IMU data between prev_gps_timestamp and current gps timestamp
     imu_increment.reset(prev_gps_timestamp, cur_imu_state.gyroBias(),
                         cur_imu_state.accelBias());
@@ -121,11 +118,11 @@ void runSlidingWindowEstimator(
     }
 
     // Add the new IMU state to the graph along with factors at the timestamp
-    factor_graph_utils::addIMUState(graph, cur_imu_state, lie_direction, keys);
+    factor_graph_utils::addIMUState(graph, cur_imu_state, lie_direction, state_rep, keys);
     factor_graph_utils::addPreintegrationFactor(graph, imu_increment,
-                                                lie_direction, keys);
+                                                lie_direction, state_rep, keys);
     factor_graph_utils::addGPSFactor(graph, gps_data[gps_index], lie_direction,
-                                     R_gps, keys);
+                                     R_gps, state_rep, keys);
     // If we've reached the window size, optimize the graph and marginalize the
     // oldest state
     if (graph.getStates().getNumStatesForType(keys.nav_state_key) >=
@@ -183,7 +180,7 @@ void runFullBatchEstimator(
   // Add the first IMU state to the graph and add a prior factor
   factor_graph_utils::addIMUState(graph, init_imu_state, lie_direction);
   factor_graph_utils::addPriorFactor(graph, init_imu_state, init_cov,
-                                     lie_direction, keys);
+                                     lie_direction, state_rep, keys);
 
   // Create the initial IMU increment
   size_t imu_idx = 0;
@@ -216,11 +213,11 @@ void runFullBatchEstimator(
     }
 
     // Add the new IMU state to the graph along with factors at the timestamp
-    factor_graph_utils::addIMUState(graph, cur_imu_state, lie_direction, keys);
+    factor_graph_utils::addIMUState(graph, cur_imu_state, lie_direction, state_rep, keys);
     factor_graph_utils::addPreintegrationFactor(graph, imu_increment,
-                                                lie_direction, keys);
+                                                lie_direction, state_rep, keys);
     factor_graph_utils::addGPSFactor(graph, gps_data[gps_index], lie_direction,
-                                     R_gps, keys);
+                                     R_gps, state_rep, keys);
 
     prev_gps_timestamp = cur_gps_timestamp;
     est_stamps.push_back(cur_imu_state.timestamp());
