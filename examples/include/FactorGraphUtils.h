@@ -34,7 +34,7 @@ void addIMUState(
   // Create a new ExtendedPoseParameterBlock for the IMU state
   std::shared_ptr<ExtendedPoseParameterBlock> nav_state_block =
       std::make_shared<ExtendedPoseParameterBlock>(imu_state.navState(),
-                                                   state_rep);
+                                                   state_rep, "extended_pose", direction);
   std::shared_ptr<ParameterBlock<6>> bias_block =
       std::make_shared<ParameterBlock<6>>(imu_state.bias());
 

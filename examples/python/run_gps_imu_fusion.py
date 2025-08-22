@@ -10,6 +10,7 @@ from navlie.lib.datasets import SimulatedInertialGPSDataset
 from navlie.lib.imu import IMU, IMUState
 from navlie.types import Measurement, StateWithCovariance
 from navlie.utils import associate_stamps, GaussianResultList, plot_error, plot_poses
+from navlie.lib.states import CompositeState, SO3State, VectorState
 from pymlg import SO3, SE23
 import argparse
 
@@ -55,7 +56,7 @@ class InertialNavigationExampleConfig:
     lie_direction: str = "left"
     # The state representation to use for the navigation state
     # Options: "SE23" or "decoupled"
-    state_representation: str = "SE23"
+    state_representation: str = "decoupled"
     # Output direct and output file names
     output_dir: str = "unset_output_dir"
     gt_fname: str = "ground_truth.txt"
@@ -70,7 +71,57 @@ class InertialNavigationExampleConfig:
     estimator_type: str = "sliding_window"  # "full_batch" or "sliding_window"
 
 
-def load_imu_states_from_asl(file_path: str) -> typing.List[IMUState]:
+class DecoupledIMUState(CompositeState):
+    """A composite state that contains attitude, velocity, position, and biases.
+
+    Here, the navigation state is represented as an element of SO(3) \times R^6,
+    rather than as an element of SE_2(3) as done in the IMUState in navlie.lib.imu.
+    """
+
+    def __init__(
+        self,
+        attitude: np.ndarray,
+        velocity: np.ndarray,
+        position: np.ndarray,
+        bias_gyro: np.ndarray,
+        bias_accel: np.ndarray,
+        stamp: float = None,
+        state_id: typing.Any = None,
+        direction: str = "right",
+    ):
+        attitude_state = SO3State(
+            value=attitude,
+            stamp=stamp,
+            state_id=state_id,
+            direction=direction,
+        )
+        velocity_state = VectorState(velocity, stamp, "velocity")
+        position_state = VectorState(position, stamp, "position")
+        bias_gyro_state = VectorState(bias_gyro, stamp, "bias_gyro")
+        bias_accel_state = VectorState(bias_accel, stamp, "bias_accel")
+
+        state_list = [
+            attitude_state,
+            velocity_state,
+            position_state,
+            bias_gyro_state,
+            bias_accel_state,
+        ]
+
+        super().__init__(state_list, stamp=stamp, state_id=state_id)
+
+    @property
+    def attitude(self) -> np.ndarray:
+        return self.value[0].value
+    @property
+    def position(self) -> np.ndarray:
+        return self.value[2].value
+
+
+def load_imu_states_from_asl(
+    file_path: str,
+    state_representation: str = "SE23",
+) -> typing.List[IMUState]:
     """Loads IMU states from a text file in the ASL format."""
     data = np.loadtxt(file_path, delimiter=",")
     imu_states = []
@@ -84,13 +135,24 @@ def load_imu_states_from_asl(file_path: str) -> typing.List[IMUState]:
 
         attitude = SO3.from_quat(quat, order="wxyz")
 
-        nav_state = SE23.from_components(attitude, velocity, position)
-        imu_state = IMUState(
-            stamp=stamp,
-            nav_state=nav_state,
-            bias_gyro=bias_gyro,
-            bias_accel=bias_accel,
-        )
+        if state_representation == "decoupled":
+            # create a decoupled IMU state
+            imu_state = DecoupledIMUState(
+                attitude,
+                velocity,
+                position,
+                bias_gyro,
+                bias_accel,
+                stamp=stamp,
+            )
+        else:
+            nav_state = SE23.from_components(attitude, velocity, position)
+            imu_state = IMUState(
+                stamp=stamp,
+                nav_state=nav_state,
+                bias_gyro=bias_gyro,
+                bias_accel=bias_accel,
+            )
         imu_states.append(imu_state)
     return imu_states
 
@@ -272,6 +334,8 @@ def run_gps_imu_fusion(
         config.output_dir,
         "--estimator_type",
         config.estimator_type,
+        "--state_representation",
+        config.state_representation,
     ]
 
     cmd.extend(args)
@@ -296,8 +360,8 @@ def evaluate_imu_states(
     Here we need to know the Lie direction and state representation to
     compute errors correctly.
     """
-    gt_states = load_imu_states_from_asl(gt_file)
-    est_states = load_imu_states_from_asl(est_file)
+    gt_states = load_imu_states_from_asl(gt_file, state_representation)
+    est_states = load_imu_states_from_asl(est_file, state_representation)
     covariances, cov_stamps = load_covariances_from_file(cov_file, 15)
 
     if len(est_states) != len(covariances):
@@ -319,7 +383,8 @@ def evaluate_imu_states(
         est_list.append(est_states[match[0]])
         cov_list.append(covariances[match[0]])
 
-    # Change the Lie direction of the IMU states
+    # Change the Lie direction of the IMU states to ensure that
+    # the errors are computed correctly
     for x, x_est in zip(gt_list, est_list):
         x.direction = lie_direction
         x_est.direction = lie_direction
@@ -334,6 +399,17 @@ def evaluate_imu_states(
     fig.suptitle(
         f"IMU State Errors for Lie Direction {lie_direction} and State Representation {state_representation}"
     )
+    ax[2, 0].set_xlabel("Time (s)")
+    ax[2, 1].set_xlabel("Time (s)")
+    ax[2, 2].set_xlabel("Time (s)")
+    ax[2, 3].set_xlabel("Time (s)")
+    ax[2, 4].set_xlabel("Time (s)")
+
+    ax[0, 0].set_title("Attitude")
+    ax[0, 1].set_title("Velocity")
+    ax[0, 2].set_title("Position")
+    ax[0, 3].set_title("Gyro Bias")
+    ax[0, 4].set_title("Accel Bias")
 
     # Plot the poses on a graph
     fig, ax = plot_poses(est_list, line_color="tab:blue", label="Estimated", step=None)
@@ -359,7 +435,9 @@ if __name__ == "__main__":
     )
     executable_path = os.path.join(cur_dir, "../../build/examples/gps_imu_example")
 
-    config.lie_direction = "left"
+    config.lie_direction = "right"
+    config.state_representation = "decoupled"
+
     # Generate data an run the example
     data_fpaths = generate_and_save_data(config, save_dir)
     run_gps_imu_fusion(config, executable_path, data_fpaths)

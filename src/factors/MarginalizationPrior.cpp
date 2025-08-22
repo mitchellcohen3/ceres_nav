@@ -21,7 +21,10 @@
  ***************************************************************************/
 
 #include "factors/MarginalizationPrior.h"
-#include "local_parameterizations/ExtendedPoseLocalParameterization.h"
+
+#include "local_parameterizations/DecoupledExtendedPoseLocalParameterization.h"
+#include "local_parameterizations/SE23LocalParameterization.h"
+// #include "local_parameterizations/ExtendedPoseLocalParameterization.h"
 #include "local_parameterizations/PoseLocalParameterization.h"
 
 #include "lie/SE23.h"
@@ -38,9 +41,13 @@ getLocalParamType(const ceres::LocalParameterization *local_param) {
     return ParameterType::Vector;
   }
 
-  if (dynamic_cast<const ExtendedPoseLocalParameterization *>(local_param) !=
-      nullptr) {
-    return ParameterType::ExtendedPose;
+  if (dynamic_cast<const SE23LocalParameterization *>(local_param) != nullptr) {
+    return ParameterType::ExtendedPoseSE23;
+  }
+
+  if (dynamic_cast<const DecoupledExtendedPoseLocalParameterization *>(
+          local_param) != nullptr) {
+    return ParameterType::ExtendedPoseDecoupled;
   }
 
   if (dynamic_cast<const PoseLocalParameterization *>(local_param) != nullptr) {
@@ -148,7 +155,7 @@ bool MarginalizationPrior::Evaluate(double const *const *Parameters,
             .setIdentity();
       }
       break;
-    case ParameterType::ExtendedPose: {
+    case ParameterType::ExtendedPoseSE23: {
 
       const ExtendedPoseLocalParameterization *extended_param =
           dynamic_cast<const ExtendedPoseLocalParameterization *>(local_param);
@@ -181,6 +188,38 @@ bool MarginalizationPrior::Evaluate(double const *const *Parameters,
       if (HasJacobian) {
         // Get the manifold Jacobian from Ceres
         Eigen::Matrix<double, 15, 9> jac = extended_param->getEigenJacobian();
+        JacobianManifold.block(IndexError, IndexState, LocalSize, GlobalSize) =
+            jac.transpose();
+      }
+      break;
+    }
+    case ParameterType::ExtendedPoseDecoupled: {
+      const DecoupledExtendedPoseLocalParameterization *decoupled_param =
+          dynamic_cast<const DecoupledExtendedPoseLocalParameterization *>(
+              local_param);
+      if (decoupled_param == nullptr) {
+        LOG(ERROR) << "MarginalizationPrior: downcast failed.";
+      }
+
+      LieDirection direction = decoupled_param->direction();
+
+      // Compute x.minus(x_prior) for the decoupled extended pose
+      Eigen::Matrix3d C_prior = SO3::unflatten(LinearState.block<9, 1>(0, 0));
+      Eigen::Vector3d v_prior = LinearState.block<3, 1>(9, 0);
+      Eigen::Vector3d r_prior = LinearState.block<3, 1>(12, 0);
+
+      Eigen::Matrix3d C = SO3::unflatten(State.block<9, 1>(0, 0));
+      Eigen::Vector3d v = State.block<3, 1>(9, 0);
+      Eigen::Vector3d r = State.block<3, 1>(12, 0);
+
+      Eigen::Matrix<double, 9, 1> error;
+      error.block<3, 1>(0, 0) = SO3::minus(C, C_prior, direction);
+      error.block<3, 1>(3, 0) = v - v_prior;
+      error.block<3, 1>(6, 0) = r - r_prior;
+      DeltaState.segment(IndexError, LocalSize) = error;
+      if (HasJacobian) {
+        // Get the manifold Jacobian from Ceres
+        Eigen::Matrix<double, 15, 9> jac = decoupled_param->getEigenJacobian();
         JacobianManifold.block(IndexError, IndexState, LocalSize, GlobalSize) =
             jac.transpose();
       }
