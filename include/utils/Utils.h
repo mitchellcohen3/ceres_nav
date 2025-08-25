@@ -6,6 +6,8 @@
 
 #include <ceres/ceres.h>
 
+namespace ceres_nav {
+
 double roundTo(double value, double precision);
 
 double roundStamp(double value);
@@ -45,3 +47,5 @@ void discretizeSystem(const Eigen::MatrixXd &A_ct, const Eigen::MatrixXd &L_ct,
                       const Eigen::MatrixXd &Q_ct, double dt,
                       Eigen::MatrixXd &A_d, Eigen::MatrixXd &Q_d,
                       DiscretizationMethod method = DiscretizationMethod::TaylorSeries);
+
+} // namespace ceres_nav

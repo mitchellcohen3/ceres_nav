@@ -68,6 +68,9 @@ public:
 
   // Gets the covariance of the preintegrated measurement
   Eigen::Matrix<double, 15, 15> covariance() const { return rmi.covariance; }
+  
+  double startStamp() const { return rmi.start_stamp; }
+  double endStamp() const { return rmi.end_stamp; }
 
 private:
   const IMUIncrement rmi;

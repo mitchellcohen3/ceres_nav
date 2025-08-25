@@ -7,6 +7,8 @@ double roundTo(double value, double precision) {
 
 double roundStamp(double value) { return roundTo(value, 1e-3); }
 
+namespace ceres_nav {
+
 Eigen::MatrixXd
 computeSquareRootInformation(const Eigen::MatrixXd &covariance) {
   // Check that we have a valid covariance that we can get the information of
@@ -73,7 +75,7 @@ void discretizeSystem(const Eigen::MatrixXd &A_ct, const Eigen::MatrixXd &L_ct,
         0.5 * A_dt_square + (1.0 / 6.0) * A_dt_cube;
 
   // Compute the discrete-time noise covariance
-  if (method == DiscretizationMethod::TaylorSeries) {
+  if (method == ceres_nav::DiscretizationMethod::TaylorSeries) {
     Eigen::Matrix<double, 15, 15> Q = L_ct * Q_ct * L_ct.transpose();
     Eigen::Matrix<double, 15, 15> first_term = Q * dt;
     Eigen::Matrix<double, 15, 15> second_term =
@@ -88,3 +90,5 @@ void discretizeSystem(const Eigen::MatrixXd &A_ct, const Eigen::MatrixXd &L_ct,
     throw std::invalid_argument("Unsupported discretization method");
   }
 }
+
+} // namespace ceres_nav

@@ -82,7 +82,7 @@ void addGPSFactor(
     const LieDirection &direction, const Eigen::Matrix3d &covariance,
     ExtendedPoseRepresentation state_rep = ExtendedPoseRepresentation::SE23,
     ProblemKeys keys = ProblemKeys()) {
-  Eigen::Matrix3d sqrt_info = computeSquareRootInformation(covariance);
+  Eigen::Matrix3d sqrt_info = ceres_nav::computeSquareRootInformation(covariance);
 
   std::vector<ceres_nav::StateID> state_ids = {
       ceres_nav::StateID(keys.nav_state_key, gps_message.timestamp)};

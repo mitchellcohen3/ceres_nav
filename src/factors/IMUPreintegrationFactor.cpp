@@ -50,7 +50,7 @@ bool IMUPreintegrationFactor::Evaluate(double const *const *parameters,
   // covariance = 0.5 * (covariance + covariance.transpose());
 
   Eigen::Matrix<double, 15, 15> sqrt_info =
-      computeSquareRootInformation(covariance);
+      ceres_nav::computeSquareRootInformation(covariance);
 
   Eigen::Map<Eigen::Matrix<double, 15, 1>> residual(residuals);
   residual = error;

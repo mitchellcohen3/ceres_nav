@@ -92,8 +92,8 @@ void IMUIncrement::propagateCovarianceAndBiasJacobian(
   }
 
   Eigen::MatrixXd A_d, Q_d;
-  discretizeSystem(A_ct, L_ct, Q_ct, dt, A_d, Q_d,
-                   DiscretizationMethod::TaylorSeries);
+  ceres_nav::discretizeSystem(A_ct, L_ct, Q_ct, dt, A_d, Q_d,
+                   ceres_nav::DiscretizationMethod::TaylorSeries);
   Q_d = 0.5 * (Q_d + Q_d.transpose());
 
   // Propagate Jacobian forward and extract bias portion

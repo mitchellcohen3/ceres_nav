@@ -14,7 +14,7 @@ IMUPriorFactor::IMUPriorFactor(
       prior_covariance_(prior_covariance), direction_(direction),
       pose_rep_(pose_rep) {
   // Compute square root info matrix
-  sqrt_info_ = computeSquareRootInformation(prior_covariance_);
+  sqrt_info_ = ceres_nav::computeSquareRootInformation(prior_covariance_);
 }
 
 bool IMUPriorFactor::Evaluate(double const *const *parameters,
