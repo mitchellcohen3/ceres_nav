@@ -5,26 +5,23 @@
 #include <vector>
 
 #include "imu/IMUIncrement.h"
-
-class IMUStateHolder {
-public:
-  Eigen::Matrix3d attitude;
-  Eigen::Vector3d velocity;
-  Eigen::Vector3d position;
-  Eigen::Vector3d bias_gyro;
-  Eigen::Vector3d bias_accel;
-};
+#include "imu/IMUPreintegrationHelper.h"
 
 class IMUPreintegrationFactor
     : public ceres::SizedCostFunction<15, 15, 6, 15, 6> {
 public:
-  IMUIncrement rmi;
-  bool use_group_jacobians;
+  // // The RMI
+  // IMUIncrement rmi;
 
-  // Navigation state representation options
-  // This is used to determine how the Jacobians are computed
-  LieDirection direction;
-  ExtendedPoseRepresentation pose_rep = ExtendedPoseRepresentation::SE23;
+  // // Navigation state representation options
+  // // This is used to determine how the Jacobians are computed
+  // LieDirection direction;
+  // ExtendedPoseRepresentation pose_rep = ExtendedPoseRepresentation::SE23;
+
+  // bool use_group_jacobians;
+
+  // Helper class to compute the residuals and Jacobians
+  IMUPreintegrationHelper helper;
 
   /*
    * @brief Default constructor
@@ -42,28 +39,4 @@ public:
    */
   virtual bool Evaluate(double const *const *parameters, double *residuals,
                         double **jacobians) const;
-
-  // Helper functions for error and Jacobian computation
-  Eigen::Matrix<double, 15, 1> computeRawError(const IMUStateHolder &X_i,
-                                               const IMUStateHolder &X_j) const;
-  Eigen::Matrix<double, 5, 5> getUpdatedRMI(const IMUStateHolder &X_i) const;
-  Eigen::Matrix<double, 5, 5> predictNavRMI(const IMUStateHolder &X_i,
-                                            const IMUStateHolder &X_j) const;
-
-  /** Functions to compute raw Jacobians of error function.*/
-  std::vector<Eigen::Matrix<double, 15, 15>>
-  computeRawJacobians(const IMUStateHolder &X_i,
-                      const IMUStateHolder &X_j) const;
-
-  std::vector<Eigen::Matrix<double, 15, 15>>
-  computeRawJacobiansLeftSE23(const IMUStateHolder &X_i,
-                              const IMUStateHolder &X_j) const;
-
-  std::vector<Eigen::Matrix<double, 15, 15>>
-  computeRawJacobiansRightSE23(const IMUStateHolder &X_i,
-                               const IMUStateHolder &X_j) const;
-
-  std::vector<Eigen::Matrix<double, 15, 15>>
-  computeRawJacobiansRightDecoupled(const IMUStateHolder &X_i,
-                                    const IMUStateHolder &X_j) const;
 };
