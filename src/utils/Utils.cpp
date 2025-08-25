@@ -1,13 +1,14 @@
 #include "utils/Utils.h"
 #include <fstream>
 
+
+namespace ceres_nav {
+
 double roundTo(double value, double precision) {
   return std::round(value / precision) * precision;
 }
 
 double roundStamp(double value) { return roundTo(value, 1e-3); }
-
-namespace ceres_nav {
 
 Eigen::MatrixXd
 computeSquareRootInformation(const Eigen::MatrixXd &covariance) {
