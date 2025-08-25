@@ -150,14 +150,14 @@ void runSlidingWindowEstimator(
       // Overwrite the current IMU state with the latest one
       cur_imu_state = latest_imu_state;
 
-      writeVectorToFile(est_imu_file, latest_imu_state.toVector());
+      ceres_nav::writeVectorToFile(est_imu_file, latest_imu_state.toVector());
       Eigen::Matrix<double, 15, 15> imu_cov =
           factor_graph_utils::computeIMUCovariance(
               graph, latest_imu_state.timestamp(), keys);
       Eigen::Matrix<double, 226, 1> flat_cov;
       flat_cov(0) = latest_imu_state.timestamp();
-      flat_cov.block<225, 1>(1, 0) = flattenMatrix(imu_cov);
-      writeVectorToFile(cov_file, flat_cov);
+      flat_cov.block<225, 1>(1, 0) = ceres_nav::flattenMatrix(imu_cov);
+      ceres_nav::writeVectorToFile(cov_file, flat_cov);
     }
 
     prev_gps_timestamp = cur_gps_timestamp;
@@ -244,15 +244,15 @@ void runFullBatchEstimator(
   for (auto const &stamp : est_stamps) {
     IMUState cur_imu_state =
         factor_graph_utils::getIMUState(graph, stamp, keys);
-    writeVectorToFile(est_imu_file, cur_imu_state.toVector());
+    ceres_nav::writeVectorToFile(est_imu_file, cur_imu_state.toVector());
 
     Eigen::Matrix<double, 15, 15> imu_cov =
         factor_graph_utils::computeIMUCovariance(
             graph, cur_imu_state.timestamp(), keys);
     Eigen::Matrix<double, 226, 1> flat_cov;
     flat_cov(0) = cur_imu_state.timestamp();
-    flat_cov.block<225, 1>(1, 0) = flattenMatrix(imu_cov);
-    writeVectorToFile(cov_file, flat_cov);
+    flat_cov.block<225, 1>(1, 0) = ceres_nav::flattenMatrix(imu_cov);
+    ceres_nav::writeVectorToFile(cov_file, flat_cov);
   }
 }
 
@@ -333,8 +333,8 @@ int main(int argc, const char **argv) {
   std::string output_dir = args["output_dir"].as<std::string>();
   std::string est_imu_states_file = output_dir + "/optimized_imu_states.txt";
   std::string cov_file = output_dir + "/covariances.txt";
-  createNewFile(est_imu_states_file);
-  createNewFile(cov_file);
+  ceres_nav::createNewFile(est_imu_states_file);
+  ceres_nav::createNewFile(cov_file);
 
   IMUState init_imu_state = imu_states_gt[0];
   Eigen::Matrix<double, 15, 15> init_cov =
