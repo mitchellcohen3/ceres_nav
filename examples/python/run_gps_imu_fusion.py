@@ -9,7 +9,7 @@ import seaborn as sns
 from navlie.lib.datasets import SimulatedInertialGPSDataset
 from navlie.lib.imu import IMU, IMUState
 from navlie.types import Measurement, StateWithCovariance
-from navlie.utils import associate_stamps, GaussianResultList, plot_error, plot_poses
+from navlie.utils import associate_stamps, GaussianResultList, plot_error, plot_poses, plot_nees
 from navlie.lib.states import CompositeState, SO3State, VectorState
 from pymlg import SO3, SE23
 import argparse
@@ -47,7 +47,7 @@ class InertialNavigationExampleConfig:
     accel_white_noise: float = 0.01
     gyro_random_walk: float = 0.0001
     accel_random_walk: float = 0.0001
-    gps_white_noise: float = 0.25
+    gps_white_noise: float = 0.1
     imu_freq: int = 500.0
     gps_freq: int = 10
     t_end: float = 50.0
@@ -231,15 +231,17 @@ def generate_and_save_data(config: InertialNavigationExampleConfig, save_dir: st
     """Generates a simulated inertial and GPS dataset and saves all data to text files."""
     Q_c = np.identity(12)
     Q_c[0:3, 0:3] *= config.gyro_white_noise**2
-    Q_c[3:6, 3:6] *= config.accel_white_noise
+    Q_c[3:6, 3:6] *= config.accel_white_noise**2
     Q_c[6:9, 6:9] *= config.gyro_random_walk**2
     Q_c[9:12, 9:12] *= config.accel_random_walk**2
 
     R = np.identity(3) * config.gps_white_noise**2
 
-    print("Noise active:", config.noise_active)
+    # Convert to discrete-time noise
+    dt = 1.0 / config.imu_freq
+    Q = Q_c / dt
     data = SimulatedInertialGPSDataset(
-        Q=Q_c,
+        Q=Q,
         R=R,
         t_start=0.0,
         t_end=config.t_end,
@@ -419,6 +421,10 @@ def evaluate_imu_states(
     ax.set_ylabel("y (m)")
     ax.set_zlabel("z (m)")
     ax.legend()
+
+    # Plot the NEES
+    fig, ax = plot_nees(results)
+    fig.suptitle("IMU State NEES")
     plt.tight_layout()
 
 
@@ -444,6 +450,8 @@ if __name__ == "__main__":
 
     est_file = os.path.join(save_dir, "optimized_imu_states.txt")
     cov_file = os.path.join(save_dir, "covariances.txt")
+
+    print("Evaluating results...")
     evaluate_imu_states(
         est_file,
         data_fpaths["ground_truth"],
