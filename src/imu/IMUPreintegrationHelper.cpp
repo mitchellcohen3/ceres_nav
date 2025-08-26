@@ -21,13 +21,17 @@ IMUPreintegrationHelper::computePreintegrationError(
     // predicted and measured RMI on SE_2(3)
     e_nav = SE23::minus(Y_pred, Y_meas, direction);
   } else if (pose_rep == ExtendedPoseRepresentation::Decoupled) {
-    // Else, we compute the error using the decoupled representation
-    e_nav.block<3, 1>(0, 0) = SO3::minus(Y_pred.block<3, 3>(0, 0),
-                                         Y_meas.block<3, 3>(0, 0), direction);
-    e_nav.block<3, 1>(3, 0) =
+    Eigen::Vector3d delta_phi = SO3::minus(
+        Y_pred.block<3, 3>(0, 0), Y_meas.block<3, 3>(0, 0), direction);
+    Eigen::Vector3d delta_v =
         Y_pred.block<3, 1>(0, 3) - Y_meas.block<3, 1>(0, 3);
-    e_nav.block<3, 1>(6, 0) =
+    Eigen::Vector3d delta_r =
         Y_pred.block<3, 1>(0, 4) - Y_meas.block<3, 1>(0, 4);
+
+    // Else, we compute the error using the decoupled representation
+    e_nav.block<3, 1>(0, 0) = delta_phi;
+    e_nav.block<3, 1>(3, 0) = delta_v;
+    e_nav.block<3, 1>(6, 0) = delta_r;
   }
 
   Eigen::Vector3d e_bg = X_j.bias_gyro - X_i.bias_gyro;
@@ -88,6 +92,7 @@ IMUPreintegrationHelper::getUpdatedRMI(const IMUStateHolder &X_i) const {
     Eigen::Matrix3d delta_C_updated;
     // Update delta_C with the correct perturbation
     if (direction == LieDirection::left) {
+      LOG(INFO) << "Using left jacobians for decoupled navigation state representation.";
       delta_C_updated = SO3::expMap(dC_dbg * d_bg) * delta_C;
     } else if (direction == LieDirection::right) {
       // Perform first-order correction

@@ -126,7 +126,7 @@ void IMUIncrement::computeContinuousTimeJacobiansDecoupled(
     A_ct.block<3, 3>(0, 0) = -SO3::cross(unbiased_gyro);
     A_ct.block<3, 3>(0, 9) = -Eigen::Matrix3d::Identity();
     A_ct.block<3, 3>(3, 0) = -C * SO3::cross(unbiased_accel);
-    A_ct.block<3, 3>(0, 9) = -C;
+    A_ct.block<3, 3>(3, 12) = -C;
     A_ct.block<3, 3>(6, 3) = Eigen::Matrix3d::Identity();
 
     L_ct.block<3, 3>(0, 0) = Eigen::Matrix3d::Identity();
