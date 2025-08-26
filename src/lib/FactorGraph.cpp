@@ -325,12 +325,13 @@ bool FactorGraph::marginalizeStates(std::vector<StateID> states_m) {
     marginalization_timing_stats_["marginalization_schur_complement_duration"] =
         schur_compl_duration;
 
-    // Store the original states
-    std::vector<ceres_nav::Vector> original_states;
+    // Store a copy of the original states
+    std::vector<Eigen::VectorXd> original_states;
     for (int n = 0; n < connected_state_ptrs.size(); n++) {
-      ceres_nav::VectorRef<double, Eigen::Dynamic> state_vec(
+      Eigen::Map<Eigen::VectorXd> state_vec(
           connected_state_ptrs.at(n), global_size.at(n));
-      original_states.emplace_back(state_vec);
+      Eigen::VectorXd state_copy = state_vec;
+      original_states.emplace_back(state_copy);
     }
 
     // Add a marginal prior

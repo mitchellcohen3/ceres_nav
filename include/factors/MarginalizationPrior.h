@@ -56,7 +56,7 @@ class MarginalizationPrior : public ceres::CostFunction {
 public:
   MarginalizationPrior(
       const std::vector<int> &LocalSize, const std::vector<int> &GlobalSize,
-      const std::vector<ceres_nav::Vector> &LinearizationPoints,
+      const std::vector<Eigen::VectorXd> &LinearizationPoints,
       const std::vector<const ceres::LocalParameterization *> &LocalParamPtrs,
       const Matrix &J, const Vector &R, const std::vector<StateID> &StateIDs);
 
