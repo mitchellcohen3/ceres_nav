@@ -150,11 +150,13 @@ IMUPreintegrationHelper::computeRawJacobians(const IMUStateHolder &X_i,
     if (direction == LieDirection::left) {
       LOG(INFO) << "Left Jacobians not implemented for decoupled navigation "
                    "state representation.";
+      return std::vector<Eigen::Matrix<double, 15, 15>>();
     } else if (direction == LieDirection::right) {
       return computeRawJacobiansRightDecoupled(X_i, X_j);
     } else {
       LOG(INFO) << "Unknown Lie direction for decoupled navigation state "
                    "representation.";
+      return std::vector<Eigen::Matrix<double, 15, 15>>();
     }
   }
 }
