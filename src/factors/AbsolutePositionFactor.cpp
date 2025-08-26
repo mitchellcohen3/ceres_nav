@@ -1,27 +1,16 @@
 #include "factors/AbsolutePositionFactor.h"
-#include "lie/SO3.h"
-#include "lie/SE3.h"
 #include "lie/SE23.h"
+#include "lie/SE3.h"
+#include "lie/SO3.h"
 
 bool AbsolutePositionFactor::Evaluate(double const *const *parameters,
                                       double *residuals,
                                       double **jacobians) const {
-  // Extract quadric parameters
-  Eigen::Matrix3d imu_att;
-  Eigen::Vector3d imu_vel;
-  Eigen::Vector3d imu_pos;
-
-  if (pose_type == "SE3") {
-    Eigen::Matrix<double, 4, 4> imu_pose =
-        SE3::fromCeresParameters(parameters[0]);
-    SE3::toComponents(imu_pose, imu_att, imu_pos);
-  } else if (pose_type == "SE23") {
-    Eigen::Matrix<double, 5, 5> T_imu =
-        SE23::fromCeresParameters(parameters[0]);
-    SE23::toComponents(T_imu, imu_att, imu_vel, imu_pos);
-  } else {
-    throw std::runtime_error("Unknown pose type");
-  }
+  // Extract the pose from the parameters
+  Eigen::Matrix<double, 5, 5> T_imu = SE23::fromCeresParameters(parameters[0]);
+  Eigen::Matrix3d imu_att = T_imu.block<3, 3>(0, 0);
+  Eigen::Vector3d imu_vel = T_imu.block<3, 1>(0, 3);
+  Eigen::Vector3d imu_pos = T_imu.block<3, 1>(0, 4);
 
   Eigen::Vector3d pred_meas = imu_pos;
 
@@ -30,34 +19,45 @@ bool AbsolutePositionFactor::Evaluate(double const *const *parameters,
   Eigen::Map<Eigen::Matrix<double, 3, 1>> residual(residuals);
   residual = sqrt_info * error;
 
-  Eigen::Matrix<double, 3, 9> H_x = Eigen::Matrix<double, 3, 9>::Zero();
-  if (direction == LieDirection::right) {
-    H_x.block<3, 3>(0, 6) = imu_att;
-  } else if (direction == LieDirection::left) {
-    H_x.block<3, 3>(0, 0) = -SO3::cross(imu_pos);
-    H_x.block<3, 3>(0, 6) = Eigen::Matrix3d::Identity();
-  } else {
-    std::cerr << "Invalid LieDirection" << std::endl;
+  Eigen::Matrix3d att_jacobian;
+  Eigen::Matrix3d pos_jacobian;
+
+  // Compute the Jacobians of the measurement model
+  // based on the pose representation
+  switch (pose_type) {
+  case ExtendedPoseRepresentation::SE23: {
+    if (direction == LieDirection::right) {
+      att_jacobian = Eigen::Matrix3d::Zero();
+      pos_jacobian = -imu_att;
+    } else if (direction == LieDirection::left) {
+      att_jacobian = SO3::cross(imu_pos);
+      pos_jacobian = -Eigen::Matrix3d::Identity();
+    } else {
+      std::cerr << "Invalid LieDirection" << std::endl;
+    }
+    break;
+  }
+  case ExtendedPoseRepresentation::Decoupled: {
+    pos_jacobian = -Eigen::Matrix3d::Identity();
+    att_jacobian = Eigen::Matrix3d::Zero();
+    break;
+  }
+  default:
+    std::cerr << "Unknown state representation type" << std::endl;
+    return false;
   }
 
-  H_x = -sqrt_info * H_x;
+  att_jacobian *= sqrt_info;
+  pos_jacobian *= sqrt_info;
+
   if (jacobians) {
     // Jacobian of measurement model with respect to the Poses
     if (jacobians[0]) {
-      // Fill in the relevant parts of the Jacobian
-      if (pose_type == "SE3") {
-        Eigen::Map<Eigen::Matrix<double, 3, 12, Eigen::RowMajor>> jacobian_pose(
-            jacobians[0]);
-        jacobian_pose.setZero();
-        jacobian_pose.leftCols(3) = H_x.leftCols(3);
-        jacobian_pose.rightCols(3) = H_x.rightCols(3);
-      } else if (pose_type == "SE23") {
-        Eigen::Map<Eigen::Matrix<double, 3, 15, Eigen::RowMajor>> jacobian_pose(
-            jacobians[0]);
-        jacobian_pose.setZero();
-        jacobian_pose.leftCols(3) = H_x.leftCols(3);
-        jacobian_pose.rightCols(3) = H_x.rightCols(3);
-      }
+      Eigen::Map<Eigen::Matrix<double, 3, 15, Eigen::RowMajor>> jacobian_pose(
+          jacobians[0]);
+      jacobian_pose.setZero();
+      jacobian_pose.leftCols(3) = att_jacobian;
+      jacobian_pose.rightCols(3) = pos_jacobian;
     }
   }
 

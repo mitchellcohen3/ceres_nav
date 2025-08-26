@@ -47,6 +47,7 @@ list(
 
     src/imu/IMUIncrement.cpp
     src/imu/IMUHelper.cpp
+    src/imu/IMUPreintegrationHelper.cpp
 
     src/utils/Utils.cpp
     src/utils/CostFunctionUtils.cpp
@@ -54,6 +55,8 @@ list(
 
     src/local_parameterizations/PoseLocalParameterization.cpp
     src/local_parameterizations/ExtendedPoseLocalParameterization.cpp
+    src/local_parameterizations/SE23LocalParameterization.cpp
+    src/local_parameterizations/DecoupledExtendedPoseLocalParameterization.cpp
 
     src/lib/Covariance.cpp
     src/lib/FactorGraph.cpp

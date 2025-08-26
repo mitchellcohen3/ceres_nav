@@ -97,7 +97,8 @@ TEST_CASE("Test Pose Parameter Block") {
 }
 
 TEST_CASE("Test Extended Poses") {
-  ExtendedPoseParameterBlock extended_pose_block("extended_pose_block",
+  ExtendedPoseRepresentation rep_type = ExtendedPoseRepresentation::SE23;
+  ExtendedPoseParameterBlock extended_pose_block(rep_type, "extended_pose_block",
                                                  LieDirection::left);
   REQUIRE(extended_pose_block.dimension() == 15);
   REQUIRE(extended_pose_block.minimalDimension() == 9);

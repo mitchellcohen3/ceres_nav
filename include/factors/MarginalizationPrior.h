@@ -40,7 +40,13 @@
 
 namespace ceres_nav {
 
-enum class ParameterType { ExtendedPose, Pose, Vector, Unknown };
+enum class ParameterType {
+  ExtendedPoseSE23,
+  ExtendedPoseDecoupled,
+  Pose,
+  Vector,
+  Unknown
+};
 
 ParameterType
 getLocalParamType(const ceres::LocalParameterization *local_param);

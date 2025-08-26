@@ -5,7 +5,12 @@
 #include "lie/SE23.h"
 #include "lie/SE3.h"
 #include "lie/SO3.h"
+
+#include "local_parameterizations/DecoupledExtendedPoseLocalParameterization.h"
 #include "local_parameterizations/ExtendedPoseLocalParameterization.h"
+#include "local_parameterizations/SE23LocalParameterization.h"
+
+enum class ExtendedPoseRepresentation { SE23, Decoupled };
 
 /**
  * @brief Parameter block for SE_2(3) poses, containing attitude, velocity, and
@@ -22,12 +27,21 @@
 class ExtendedPoseParameterBlock : public ParameterBlock<15, 9> {
 public:
   explicit ExtendedPoseParameterBlock(
+      ExtendedPoseRepresentation param_type = ExtendedPoseRepresentation::SE23,
       const std::string &name = "extended_pose_parameter_block",
       LieDirection direction = LieDirection::left)
-      : ParameterBlock<15, 9>(name) {
-    // Create a local parameterization for SE(3) poses
-    local_parameterization_ptr_ =
-        new ExtendedPoseLocalParameterization(direction);
+      : ParameterBlock<15, 9>(name), direction_(direction) {
+    switch (param_type) {
+    case ExtendedPoseRepresentation::SE23:
+      local_parameterization_ptr_ = new SE23LocalParameterization(direction);
+      break;
+    case ExtendedPoseRepresentation::Decoupled:
+      local_parameterization_ptr_ =
+          new DecoupledExtendedPoseLocalParameterization(direction);
+      break;
+    default:
+      throw std::invalid_argument("Unsupported state representation type");
+    }
   }
 
   /**
@@ -35,9 +49,10 @@ public:
    */
   ExtendedPoseParameterBlock(
       const Eigen::Matrix<double, 5, 5> &nav_state,
+      ExtendedPoseRepresentation param_type = ExtendedPoseRepresentation::SE23,
       const std::string &name = "extended_pose_parameter_block",
       LieDirection direction = LieDirection::left)
-      : ExtendedPoseParameterBlock(name, direction) {
+      : ExtendedPoseParameterBlock(param_type, name, direction) {
     Eigen::Matrix3d C_ab = nav_state.block<3, 3>(0, 0);
     Eigen::Vector3d v = nav_state.block<3, 1>(0, 3);
     Eigen::Vector3d r = nav_state.block<3, 1>(0, 4);

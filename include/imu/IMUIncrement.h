@@ -1,8 +1,9 @@
 #pragma once
 
+#include "lib/ExtendedPoseParameterBlock.h"
+#include "lie/LieDirection.h"
 #include <Eigen/Dense>
 #include <vector>
-#include "lie/LieDirection.h"
 
 class IMUIncrement {
 public:
@@ -14,7 +15,9 @@ public:
   Eigen::Matrix<double, 15, 15> covariance;
   Eigen::Matrix<double, 15, 15> jacobian;
 
+  // Navigation state representation options
   LieDirection direction;
+  ExtendedPoseRepresentation pose_rep = ExtendedPoseRepresentation::SE23;
 
   // Gravity vector
   Eigen::Vector3d gravity;
@@ -35,15 +38,14 @@ public:
   std::vector<Eigen::Vector3d> acc_buf;
   std::vector<Eigen::Vector3d> gyr_buf;
 
-  // Covariance propagation method
-  std::string covariance_prop_method;
-
   IMUIncrement(const Eigen::Matrix<double, 12, 12> Q_ct,
                Eigen::Vector3d init_gyro_bias, Eigen::Vector3d init_accel_bias,
                double init_stamp, const Eigen::Vector3d &gravity,
-               const std::string &covariance_prop_method, const LieDirection &direction);
+               const LieDirection &direction,
+               const ExtendedPoseRepresentation &pose_rep =
+                   ExtendedPoseRepresentation::SE23);
 
-  IMUIncrement(){};
+  // IMUIncrement(){};
 
   void reset(double new_start_stamp,
              const Eigen::Vector3d &new_gyro_bias = Eigen::Vector3d::Zero(),
@@ -57,13 +59,34 @@ public:
   void propagate(double dt, const Eigen::Vector3d &gyro,
                  const Eigen::Vector3d &acc);
 
-  void propagateCovarianceAndBiasJacContinuous(double dt, const Eigen::Vector3d &omega,
-                                               const Eigen::Vector3d &accel);
-
-  void symmetrize();
   Eigen::Matrix<double, 5, 5> getDeltaX();
 
   // Repropagate all relevant quantities from a new initial bias
   void repropagate(const Eigen::Vector3d &init_gyro_bias,
                    const Eigen::Vector3d &init_accel_bias);
+
+protected:
+  void symmetrize();
+
+  /**
+   * @brief Propagates forward the covariance and bias Jacobian.
+   */
+  void propagateCovarianceAndBiasJacobian(double dt,
+                                          const Eigen::Vector3d &omega,
+                                          const Eigen::Vector3d &accel);
+
+  // Helper functions to compute the continuous-time A and L matrices
+  void computeContinuousTimeJacobiansSE23(const Eigen::Matrix3d &C,
+                                          const Eigen::Vector3d &v,
+                                          const Eigen::Vector3d &r,
+                                          const Eigen::Vector3d &omega,
+                                          const Eigen::Vector3d &accel,
+                                          Eigen::Matrix<double, 15, 15> &A_ct,
+                                          Eigen::Matrix<double, 15, 12> &L_ct);
+
+  void computeContinuousTimeJacobiansDecoupled(
+      const Eigen::Matrix3d &C, const Eigen::Vector3d &v,
+      const Eigen::Vector3d &r, const Eigen::Vector3d &omega,
+      const Eigen::Vector3d &accel, Eigen::Matrix<double, 15, 15> &A_ct,
+      Eigen::Matrix<double, 15, 12> &L_ct);
 };
