@@ -59,23 +59,22 @@ public:
    * @brief Get the rotation estimate
    */
   Eigen::Matrix3d attitude() const {
-    Eigen::Matrix<double, 12, 1> estimate = this->getEstimate();
-    Eigen::Matrix<double, 9, 1> flattened_C = estimate.head<9>();
-    return SO3::unflatten(flattened_C);
+    return SO3::unflatten(this->getEstimate().head<9>());
   }
 
   /**
    * @brief Get the position estimate
    */
   Eigen::Vector3d position() const {
-    Eigen::Matrix<double, 12, 1> estimate = this->getEstimate();
-    return estimate.tail<3>();
+    return this->getEstimate().tail<3>();
   }
 
   Eigen::Matrix4d pose() const {
-    Eigen::Matrix3d C = attitude();
-    Eigen::Vector3d r = position();
-    return SE3::fromComponents(C, r);
+    Eigen::Matrix<double, 12, 1> estimate = this->getEstimate();
+    Eigen::Matrix4d pose = Eigen::Matrix4d::Identity();
+    pose.block<3, 3>(0, 0) = SO3::unflatten(estimate.head<9>());
+    pose.block<3, 1>(0, 3) = estimate.tail<3>();
+    return pose;
   }
 
   // The plus operator

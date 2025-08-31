@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "lib/ParameterBlock.h"
+#include "lib/SO3ParameterBlock.h"
 #include "lib/PoseParameterBlock.h"
 #include "lib/ExtendedPoseParameterBlock.h"
 
@@ -35,6 +36,52 @@ TEST_CASE("Test Parameter Blocks") {
   Eigen::Matrix3d new_covariance = 2.0 * Eigen::Matrix3d::Identity();
   block.setCovariance(new_covariance);
   REQUIRE(block.getCovariance().isApprox(new_covariance));
+}
+
+TEST_CASE("SO3ParameterBlock") {
+  SO3ParameterBlock so3_block("so3_block", LieDirection::left);
+  REQUIRE(so3_block.dimension() == 9);
+  REQUIRE(so3_block.minimalDimension() == 3);
+
+  // Get the default estimate
+  Eigen::Matrix<double, 9, 1> estimate = so3_block.getEstimate();
+  REQUIRE(estimate.size() == 9);
+
+  // Set the estimate from a rotation matrix
+  Eigen::Matrix3d attitude = SO3::expMap(Eigen::Vector3d(0.1, 0.2, 0.3));
+  so3_block.setFromMatrix(attitude);
+  REQUIRE(so3_block.attitude().isApprox(attitude)); 
+
+  // Test the covariance
+  Eigen::Matrix3d default_covariance = so3_block.getCovariance();
+  REQUIRE(default_covariance.isApprox(Eigen::Matrix3d::Identity()));
+
+  // Test the plus operation
+  std::cout << "Got the local param pointer";
+  auto local_param = so3_block.getLocalParameterizationPointer();
+  REQUIRE(local_param != nullptr);
+
+  // Define a perturbation in the Lie algebra
+  Eigen::Matrix<double, 3, 1> delta_xi;
+  delta_xi << 0.01, 0.02, 0.03;
+  Eigen::Matrix<double, 9, 1> x_plus_delta;
+  bool success = local_param->Plus(so3_block.estimatePointer(),
+                                   delta_xi.data(), x_plus_delta.data());
+  REQUIRE(success);
+  Eigen::Matrix3d pose_after = SO3::unflatten(x_plus_delta);
+  Eigen::Matrix3d expected_pose = SO3::expMap(delta_xi) * attitude;
+  REQUIRE(pose_after.isApprox(expected_pose, 1e-6));
+
+  // Next, test with a right perturbation
+  SO3ParameterBlock(attitude, "so3_block_right", LieDirection::right);
+  local_param = so3_block.getLocalParameterizationPointer();
+  REQUIRE(local_param != nullptr);
+  success = local_param->Plus(so3_block.estimatePointer(),
+                              delta_xi.data(), x_plus_delta.data());
+  REQUIRE(success);
+  pose_after = SO3::unflatten(x_plus_delta);
+  expected_pose = attitude * SO3::expMap(delta_xi);
+  REQUIRE(pose_after.isApprox(expected_pose, 1e-6));
 }
 
 TEST_CASE("Test Pose Parameter Block") {
@@ -79,8 +126,6 @@ TEST_CASE("Test Pose Parameter Block") {
   // Define a perturbation in the Lie algebra
   Eigen::Matrix<double, 6, 1> delta_xi;
   delta_xi << 0.01, 0.02, 0.03, 0.04, 0.05, 0.06;
-
-  // Print the value of the pose before and after
   Eigen::Matrix4d pose_before = pose_block.pose();
   Eigen::Matrix<double, 12, 1> x_plus_delta;
   bool success = local_param->Plus(pose_block.getEstimate().data(),
@@ -94,6 +139,20 @@ TEST_CASE("Test Pose Parameter Block") {
   Eigen::Matrix4d pose_after = perturbed_pose_block.pose();
   Eigen::Matrix4d expected_pose = SE3::expMap(delta_xi) * pose_before;
   REQUIRE(pose_after.isApprox(expected_pose, 1e-6));
+
+  // Test the right perturbation
+  PoseParameterBlock pose_block_right(pose_before, "pose_block_right",
+                                     LieDirection::right);
+  local_param = pose_block_right.getLocalParameterizationPointer();
+  REQUIRE(local_param != nullptr);
+  success = local_param->Plus(pose_block_right.estimatePointer(),
+                              delta_xi.data(), x_plus_delta.data());
+  REQUIRE(success);
+  Eigen::Matrix4d pose_after_right = Eigen::Matrix4d::Identity(); 
+  pose_after_right.block<3, 3>(0, 0) = SO3::unflatten(x_plus_delta.head<9>());
+  pose_after_right.block<3, 1>(0, 3) = x_plus_delta.tail<3>();
+  expected_pose = pose_before * SE3::expMap(delta_xi);
+  REQUIRE(pose_after_right.isApprox(expected_pose, 1e-6));
 }
 
 TEST_CASE("Test Extended Poses") {

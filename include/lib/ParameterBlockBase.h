@@ -28,11 +28,21 @@ public:
   virtual int dimension() const = 0;
   virtual int minimalDimension() const = 0;
   virtual double *estimatePointer() = 0;
+  // virtual const double *estimatePointer() const = 0;
   virtual std::string name() const = 0;
 
   // Parameter block estimate
   virtual Eigen::VectorXd getEstimate() const = 0;
   virtual void setEstimate(const Eigen::VectorXd &estimate) = 0;
+
+
+  // Eigen::Map<const Eigen::VectorXd> getEstimateMap() const {
+  //   return Eigen::Map<const Eigen::VectorXd>(estimatePointer(), dimension());
+  // }
+  
+  Eigen::Map<Eigen::VectorXd> getEstimateMap() {
+    return Eigen::Map<Eigen::VectorXd>(estimatePointer(), dimension());
+  }
 
   // Local parameterization for optimization on manifold
   ceres::LocalParameterization *getLocalParameterizationPointer() const {

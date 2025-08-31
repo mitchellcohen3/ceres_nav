@@ -13,12 +13,11 @@
  * rotation matrix.
  *
  * The SO3LocalParameterization allows for the rotation to be updated using
- * either a left or right perturbation model, written as C = Exp(delta_xi) *
- * C_bar           (left perturbation) C = C_bar * Exp(delta_xi) (right
- * perturbation)
+ * either a left or right perturbation model, written as
+ *      C = Exp(delta_xi) * C_bar (left perturbation)
+ *      C = C_bar * Exp(delta_xi) (right perturbation)
  */
-
-class SO3ParameterBlock : public ParameterBlockBase<9, 3> {
+class SO3ParameterBlock : public ParameterBlock<9, 3> {
 public:
   explicit SO3ParameterBlock(const std::string &name = "so3_param_block",
                              LieDirection direction = LieDirection::left)
@@ -30,7 +29,9 @@ public:
   SO3ParameterBlock(const Eigen::Matrix3d &C,
                     const std::string &name = "so3_param_block",
                     LieDirection direction = LieDirection::left)
-      : SO3ParameterBlock(name, direction) {}
+      : SO3ParameterBlock(name, direction) {
+    setFromMatrix(C);
+  }
 
   void setFromMatrix(const Eigen::Matrix3d &C) {
     Eigen::Matrix<double, 9, 1> flattened_C = SO3::flatten(C);
@@ -38,9 +39,7 @@ public:
   }
 
   Eigen::Matrix3d attitude() const {
-    Eigen::Map<const Eigen::Matrix<double, 9, 1>> estimate =
-        this->getEstimate();
-    return SO3::unflatten(estimate);
+    return SO3::unflatten(this->getEstimate());
   }
 
   // The plus operator
