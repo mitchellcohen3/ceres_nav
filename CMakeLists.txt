@@ -53,6 +53,7 @@ list(
     src/utils/CostFunctionUtils.cpp
     src/utils/VectorMath.cpp
 
+    src/local_parameterizations/SO3LocalParameterization.cpp
     src/local_parameterizations/PoseLocalParameterization.cpp
     src/local_parameterizations/ExtendedPoseLocalParameterization.cpp
     src/local_parameterizations/SE23LocalParameterization.cpp

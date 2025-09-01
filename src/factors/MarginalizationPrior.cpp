@@ -59,7 +59,7 @@ getLocalParamType(const ceres::LocalParameterization *local_param) {
 
 MarginalizationPrior::MarginalizationPrior(
     const std::vector<int> &LocalSize, const std::vector<int> &GlobalSize,
-    const std::vector<Vector> &LinearizationPoints,
+    const std::vector<Eigen::VectorXd> &LinearizationPoints,
     const std::vector<const ceres::LocalParameterization *> &LocalParam_ptrs,
     const Matrix &J, const Vector &R, const std::vector<StateID> &StateIDs) {
   /** check if the data is complete */

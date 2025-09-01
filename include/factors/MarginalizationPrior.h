@@ -1,8 +1,9 @@
 /***************************************************************************
+ * Original code Copyright (C) 2019 Chair of Automation Technology / TU Chemnitz
  * libRSF - A Robust Sensor Fusion Library
- *
- * Copyright (C) 2019 Chair of Automation Technology / TU Chemnitz
  * For more information see https://www.tu-chemnitz.de/etit/proaut/libRSF
+ *
+ * This file contains code derived from the libRSF library.
  *
  * libRSF is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -55,7 +56,7 @@ class MarginalizationPrior : public ceres::CostFunction {
 public:
   MarginalizationPrior(
       const std::vector<int> &LocalSize, const std::vector<int> &GlobalSize,
-      const std::vector<ceres_nav::Vector> &LinearizationPoints,
+      const std::vector<Eigen::VectorXd> &LinearizationPoints,
       const std::vector<const ceres::LocalParameterization *> &LocalParamPtrs,
       const Matrix &J, const Vector &R, const std::vector<StateID> &StateIDs);
 
