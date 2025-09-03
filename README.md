@@ -1,4 +1,6 @@
 # Robotic Navigation in Ceres
+![CI](https://github.com/mitchellcohen3/ceres_nav/workflows/CI/badge.svg)
+
 This repo contains a set of tools to help implement batch estimators and sliding-window filters for robotic state estimation using Ceres. It contains a set of common factors (such as odometry, vision, and preintegrated IMU factors) used in state estimation, along with common Lie group state definitions such as poses and extended poses. Additionally, both "left" and "right" state definitions are provided for Lie group states, allowing for the user to pick the error definition for Lie group states that best suits the problem at hand.
 
 ## Prerequisites
@@ -28,9 +30,15 @@ This repo has been tested on Ubuntu 20.04 and has the following requirements:
   $ cmake -B build -S . -DBUILD_TESTING=OFF
   $ sudo cmake --build build/ --target install
   ```
+  - **Boost** - for filesystem and program options. Can be installed using
+  ```bash
+  $ sudo apt install libboost-all-dev
+  ```
+
+The dependencies can be also installed using the provided `scripts/install_dependencies.sh` script.
 
 ## Build
-After installing the dependancies, the `ceres_nav` library, tests, and examples can be built using
+After installing the dependencies, the `ceres_nav` library, tests, and examples can be built using
 ```
 git clone https://github.com/mitchellcohen3/ceres_nav/
 cd ceres_nav
@@ -85,7 +93,7 @@ $ cd navlie
 $ pip install -e .
 ```
 
-In this example, the state to be estimated is the IMU state, consisting of orientation $\mathbf{C}_{ab} \in SO(3)$, velocity $\mathbf{v}_a$, position $\mathbf{r}_a, gyroscope bias, and accelerometer bias. This example showcases how the library allows for easily changing the state representation. For example, the user can either represent the state as an element of 
+In this example, the state to be estimated is the IMU state, consisting of orientation $\mathbf{C}_{ab} \in SO(3)$, velocity $\mathbf{v}_a$, position $\mathbf{r}_a$, gyroscope bias, and accelerometer bias. This example showcases how the library allows for easily changing the state representation. For example, the user can either represent the state as an element of 
 
 ## Acknowledgements
 This repo is inspired partially by [libRSF](https://github.com/TUC-ProAut/libRSF), another great library for robust estimation using Ceres. `libRSF` only supports autodiff cost functions, while this repo supports traditional Ceres cost functions with analytic differentiation and provides tools to additionally check Jacobians numerically. The use of analytical derivatives becomes important when implementing sliding window filters for specific problems, such as visual-inertial odometry where the evaluation point of the Jacobians must be artificially modified to ensure consistency. 
