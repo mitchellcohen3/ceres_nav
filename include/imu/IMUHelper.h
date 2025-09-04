@@ -2,17 +2,18 @@
 
 /*
  * Some helper functions for IMU preintegration.
-*/
+ */
 
 #include <Eigen/Dense>
 #include <vector>
 
+namespace ceres_nav {
 class IMUIncrement;
 class IMU;
 
 Eigen::Matrix<double, 5, 5> createGMatrix(const Eigen::Vector3d &gravity,
                                           double dt);
-                                          
+
 Eigen::Matrix3d createNMatrix(const Eigen::Vector3d &phi_vec);
 Eigen::Matrix<double, 5, 5> createUMatrix(const Eigen::Vector3d &omega,
                                           const Eigen::Vector3d &accel,
@@ -36,3 +37,4 @@ std::vector<IMU> getIMUBetweenTimes(const double &stamp_i,
 bool preintegrateBetweenTimes(IMUIncrement &rmi, const double &stamp_i,
                               const double &stamp_j,
                               const std::vector<IMU> &imu_meas_vec);
+} // namespace ceres_name

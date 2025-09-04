@@ -3,6 +3,8 @@
 #include <Eigen/Dense>
 #include <iostream>
 
+namespace ceres_nav {
+
 Eigen::Matrix<double, 5, 5> SE23::expMap(const Eigen::Matrix<double, 9, 1> &x) {
   Eigen::Matrix<double, 5, 5> X = Eigen::Matrix<double, 5, 5>::Identity();
   Eigen::Matrix3d R{SO3::expMap(x.block<3, 1>(0, 0))};
@@ -201,3 +203,5 @@ Eigen::Matrix<double, 9, 1> SE23::minus(const Eigen::Matrix<double, 5, 5> &Y,
     return Eigen::Matrix<double, 9, 1>::Zero();
   }
 }
+
+} // namespace ceres_nav

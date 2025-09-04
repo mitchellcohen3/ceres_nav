@@ -4,6 +4,8 @@
 
 #include "lie/LieDirection.h"
 
+namespace ceres_nav {
+
 class SE3 {
 public:
   static constexpr float small_angle_tol = 1e-7;
@@ -32,3 +34,5 @@ public:
                                            const Eigen::Matrix<double, 4, 4> &X,
                                            LieDirection direction);
 };
+
+} // namespace ceres_nav

@@ -4,7 +4,8 @@
 #include "imu/IMUHelper.h"
 #include "imu/IMUIncrement.h"
 
-// #include <iostream>
+namespace ceres_nav {
+
 Eigen::Matrix<double, 5, 5> createGMatrix(const Eigen::Vector3d &gravity,
                                           double dt) {
   Eigen::Matrix<double, 5, 5> G = Eigen::Matrix<double, 5, 5>::Identity();
@@ -146,3 +147,5 @@ Eigen::Matrix<double, 9, 9> adjointIE3(const Eigen::Matrix<double, 5, 5> &X) {
 
 //   return true;
 // }
+
+} // namespace ceres_nav

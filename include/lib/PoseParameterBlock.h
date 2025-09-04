@@ -6,6 +6,8 @@
 #include "lie/SO3.h"
 #include "local_parameterizations/PoseLocalParameterization.h"
 
+namespace ceres_nav {
+
 /**
  * @brief Parameter block for SE(3) poses.
  *
@@ -27,13 +29,14 @@ public:
   }
 
   // Construct directly from a pose in SE(3)
-  PoseParameterBlock(const Eigen::Matrix4d &pose, const std::string &name = "pose_parameter_block",
+  PoseParameterBlock(const Eigen::Matrix4d &pose,
+                     const std::string &name = "pose_parameter_block",
                      LieDirection direction = LieDirection::left)
       : PoseParameterBlock(name, direction) {
     Eigen::Matrix3d C = pose.block<3, 3>(0, 0);
     Eigen::Vector3d r = pose.block<3, 1>(0, 3);
     setFromAttitudeAndPosition(C, r);
-  } 
+  }
   /**
    * @brief Set the estimate from rotation and position.
    */
@@ -89,3 +92,5 @@ public:
     local_parameterization_ptr_->ComputeJacobian(x0, jacobian);
   }
 };
+
+} // namespace ceres_nav

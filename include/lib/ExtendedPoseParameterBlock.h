@@ -10,6 +10,8 @@
 #include "local_parameterizations/ExtendedPoseLocalParameterization.h"
 #include "local_parameterizations/SE23LocalParameterization.h"
 
+namespace ceres_nav {
+
 enum class ExtendedPoseRepresentation { SE23, Decoupled };
 
 /**
@@ -118,3 +120,5 @@ public:
 protected:
   LieDirection direction_;
 };
+
+} // namespace ceres_nav

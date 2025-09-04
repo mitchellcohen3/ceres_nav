@@ -2,6 +2,8 @@
 // #include "utils/utility.h"
 #include <iostream>
 
+namespace ceres_nav {
+
 Eigen::Matrix3d SO3::cross(const Eigen::Vector3d &x) {
   Eigen::Matrix3d X;
   // clang-format off
@@ -215,3 +217,5 @@ Eigen::MatrixBase<Derived> &q)
     return ans;
 }
 */
+
+} // namespace ceres_nav

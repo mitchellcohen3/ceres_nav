@@ -6,6 +6,8 @@
 
 #include "local_parameterizations/SO3LocalParameterization.h"
 
+namespace ceres_nav {
+
 /**
  * @brief Parameter block for SO(3) rotations.
  *
@@ -54,3 +56,5 @@ public:
     local_parameterization_ptr_->ComputeJacobian(x0, jacobian);
   }
 };
+
+} // namespace ceres_nav

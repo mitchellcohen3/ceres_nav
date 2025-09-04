@@ -1,5 +1,6 @@
 #include "local_parameterizations/ExtendedPoseLocalParameterization.h"
 
+namespace ceres_nav {
 /*
  * This function computes the Jacobian of the global parameterization w.r.t the
  * local parameterization. Within each cost function, the user is expected to
@@ -25,3 +26,5 @@ ExtendedPoseLocalParameterization::getEigenJacobian() const {
 
   return jac;
 }
+
+} // namespace ceres_nav

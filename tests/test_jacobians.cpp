@@ -25,6 +25,8 @@
 #include "lib/ExtendedPoseParameterBlock.h"
 #include "utils/CostFunctionUtils.h"
 
+using namespace ceres_nav;
+
 TEST_CASE("Test AbsolutePositionFactor Jacobians") {
   // Create an absolute position factor
   Eigen::Matrix3d attitude = SO3::expMap(Eigen::Vector3d(0.5, -0.2, 0.3));
@@ -250,7 +252,7 @@ TEST_CASE("IMUPreintegrationFactor") {
       // Create the factor
       std::shared_ptr<IMUPreintegrationFactor> factor =
           std::make_shared<IMUPreintegrationFactor>(
-              imu_increment, use_group_jacobians, direction, rep_type);
+              imu_increment, use_group_jacobians);
 
       // Evaluate the factor with the parameter blocks
       std::vector<Eigen::MatrixXd> analytical_jacobians;

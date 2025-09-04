@@ -5,6 +5,8 @@
 
 #include "lie/LieDirection.h"
 
+namespace ceres_nav {
+
 class SO3 {
 public:
   static Eigen::Matrix3d cross(const Eigen::Vector3d &x);
@@ -27,3 +29,5 @@ public:
                                const Eigen::Matrix3d &X,
                                const LieDirection &direction);
 };
+
+} // namespace ceres_nav

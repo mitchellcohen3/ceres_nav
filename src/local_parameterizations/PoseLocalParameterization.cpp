@@ -2,6 +2,7 @@
 #include "lie/SE3.h"
 #include "lie/SO3.h"
 
+namespace ceres_nav {
 /**
  * ExtendedPoseLocalParameterization::Plus defines the update rule for elements
  * of SE_2(3). This function defines how to increment parameters x, given a
@@ -62,3 +63,4 @@ Eigen::Matrix<double, 12, 6> PoseLocalParameterization::getEigenJacobian() const
 
   return jac;
 }
+} // namespace ceres_nav

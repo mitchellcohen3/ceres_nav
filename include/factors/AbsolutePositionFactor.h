@@ -7,6 +7,8 @@
 #include "lib/ExtendedPoseParameterBlock.h"
 #include "lie/LieDirection.h"
 
+namespace ceres_nav {
+
 class AbsolutePositionFactor : public ceres::SizedCostFunction<3, 15> {
 public:
   Eigen::Vector3d meas;
@@ -29,3 +31,5 @@ public:
   bool Evaluate(double const *const *parameters, double *residuals,
                 double **jacobians) const override;
 };
+
+} // namespace ceres_nav

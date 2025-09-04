@@ -17,6 +17,7 @@
 #include "utils/Utils.h"
 
 namespace po = boost::program_options;
+using namespace ceres_nav;
 
 po::variables_map handle_args(int argc, const char *argv[]) {
   po::options_description options("Allowed options");
@@ -91,7 +92,7 @@ void runSlidingWindowEstimator(
   // Create the initial IMU increment
   IMUIncrement imu_increment(
       Q_ct, init_imu_state.gyroBias(), init_imu_state.accelBias(),
-      init_imu_state.timestamp(), gravity, lie_direction);
+      init_imu_state.timestamp(), gravity, lie_direction, state_rep);
   IMUState cur_imu_state = init_imu_state;
   double prev_gps_timestamp = gps_data[0].timestamp;
   std::vector<double> est_stamps;
@@ -186,7 +187,7 @@ void runFullBatchEstimator(
   size_t imu_idx = 0;
   IMUIncrement imu_increment(
       Q_ct, init_imu_state.gyroBias(), init_imu_state.accelBias(),
-      init_imu_state.timestamp(), gravity, lie_direction);
+      init_imu_state.timestamp(), gravity, lie_direction, state_rep);
 
   IMUState cur_imu_state = init_imu_state;
   double prev_gps_timestamp = gps_data[0].timestamp;

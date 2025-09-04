@@ -7,6 +7,7 @@
 #include "imu/IMUIncrement.h"
 #include "imu/IMUPreintegrationHelper.h"
 
+namespace ceres_nav {
 class IMUPreintegrationFactor
     : public ceres::SizedCostFunction<15, 15, 6, 15, 6> {
 public:
@@ -29,9 +30,7 @@ public:
    * time, and a continuous-time noise matrix.
    */
   IMUPreintegrationFactor(
-      IMUIncrement imu_increment_, bool use_group_jacobians_,
-      const LieDirection &direction_,
-      ExtendedPoseRepresentation pose_rep_ = ExtendedPoseRepresentation::SE23);
+      const IMUIncrement &imu_increment_, bool use_group_jacobians_);
 
   IMUPreintegrationFactor() = delete;
   /**
@@ -40,3 +39,5 @@ public:
   virtual bool Evaluate(double const *const *parameters, double *residuals,
                         double **jacobians) const;
 };
+
+} // namespace ceres_nav

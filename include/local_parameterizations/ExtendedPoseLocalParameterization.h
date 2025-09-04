@@ -4,6 +4,8 @@
 #include <Eigen/Dense>
 #include <ceres/ceres.h>
 
+namespace ceres_nav {
+
 class ExtendedPoseLocalParameterization : public ceres::LocalParameterization {
 public:
   ExtendedPoseLocalParameterization(LieDirection direction = LieDirection::left)
@@ -11,11 +13,12 @@ public:
 
   // Destructor
   ~ExtendedPoseLocalParameterization() override = default;
-  
+
   /**
    * @brief State update funciton for the extended Pose state.
    */
-  virtual bool Plus(const double *x, const double *delta, double *x_plus_delta) const = 0;
+  virtual bool Plus(const double *x, const double *delta,
+                    double *x_plus_delta) const = 0;
   bool ComputeJacobian(const double *x, double *jacobian) const;
   int GlobalSize() const { return 15; };
   int LocalSize() const { return 9; };
@@ -32,7 +35,7 @@ public:
   // Set the direction
   void setDirection(LieDirection direction) { _direction = direction; }
 
-
 protected:
   LieDirection _direction;
 };
+} // namespace ceres_nav

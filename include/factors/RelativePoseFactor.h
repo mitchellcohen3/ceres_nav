@@ -5,6 +5,8 @@
 
 #include "lie/LieDirection.h"
 
+namespace ceres_nav {
+
 class RelativePoseFactor : public ceres::SizedCostFunction<6, 12, 12> {
 public:
   Eigen::Matrix4d relative_pose_meas;
@@ -22,3 +24,5 @@ public:
   virtual bool Evaluate(double const *const *parameters, double *residuals,
                         double **jacobians) const;
 };
+
+} // namespace ceres_nav

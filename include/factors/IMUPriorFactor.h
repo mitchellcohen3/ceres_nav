@@ -5,6 +5,8 @@
 #include <Eigen/Dense>
 #include <ceres/ceres.h>
 
+namespace ceres_nav {
+
 class IMUPriorFactor : public ceres::SizedCostFunction<15, 15, 6> {
 public:
   /**
@@ -33,3 +35,5 @@ private:
   LieDirection direction_;
   ExtendedPoseRepresentation pose_rep_;
 };
+
+}

@@ -100,4 +100,4 @@ using MatrixVectorSTL =
     std::vector<MatrixT<double, Row, Col>, Eigen::aligned_allocator<MatrixT<double, Row, Col>>>;
 
 template <int Row> using VectorVectorSTL = MatrixVectorSTL<Row, 1>;
-} // namespace libRSF
+} // namespace ceres_nav

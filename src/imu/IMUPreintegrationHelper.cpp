@@ -1,10 +1,11 @@
 #include "imu/IMUPreintegrationHelper.h"
 
+namespace ceres_nav {
+
 IMUPreintegrationHelper::IMUPreintegrationHelper(
-    const IMUIncrement &imu_increment, bool use_group_jacobians_,
-    const LieDirection &direction_, ExtendedPoseRepresentation pose_rep_)
+    const IMUIncrement &imu_increment, bool use_group_jacobians_)
     : rmi{imu_increment}, use_group_jacobians{use_group_jacobians_},
-      direction{direction_}, pose_rep{pose_rep_} {}
+      direction{imu_increment.direction}, pose_rep{imu_increment.pose_rep} {}
 
 Eigen::Matrix<double, 15, 1>
 IMUPreintegrationHelper::computePreintegrationError(
@@ -21,8 +22,8 @@ IMUPreintegrationHelper::computePreintegrationError(
     // predicted and measured RMI on SE_2(3)
     e_nav = SE23::minus(Y_pred, Y_meas, direction);
   } else if (pose_rep == ExtendedPoseRepresentation::Decoupled) {
-    Eigen::Vector3d delta_phi = SO3::minus(
-        Y_pred.block<3, 3>(0, 0), Y_meas.block<3, 3>(0, 0), direction);
+    Eigen::Vector3d delta_phi = SO3::minus(Y_pred.block<3, 3>(0, 0),
+                                           Y_meas.block<3, 3>(0, 0), direction);
     Eigen::Vector3d delta_v =
         Y_pred.block<3, 1>(0, 3) - Y_meas.block<3, 1>(0, 3);
     Eigen::Vector3d delta_r =
@@ -92,7 +93,8 @@ IMUPreintegrationHelper::getUpdatedRMI(const IMUStateHolder &X_i) const {
     Eigen::Matrix3d delta_C_updated;
     // Update delta_C with the correct perturbation
     if (direction == LieDirection::left) {
-      LOG(INFO) << "Using left jacobians for decoupled navigation state representation.";
+      LOG(INFO) << "Using left jacobians for decoupled navigation state "
+                   "representation.";
       delta_C_updated = SO3::expMap(dC_dbg * d_bg) * delta_C;
     } else if (direction == LieDirection::right) {
       // Perform first-order correction
@@ -368,3 +370,5 @@ IMUPreintegrationHelper::computeRawJacobiansRightDecoupled(
   raw_jacobians.push_back(jac_j);
   return raw_jacobians;
 }
+
+} // namespace ceres_nav

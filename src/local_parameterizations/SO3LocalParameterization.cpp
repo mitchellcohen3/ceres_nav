@@ -2,6 +2,8 @@
 #include "lie/SE3.h"
 #include "lie/SO3.h"
 
+namespace ceres_nav {
+
 /**
  * Defines the plus operator for elements of SO(3).
  * 
@@ -49,3 +51,4 @@ Eigen::Matrix<double, 9, 3> SO3LocalParameterization::getEigenJacobian() const {
   jac.block<3, 3>(0, 0) = Eigen::Matrix3d::Identity();
   return jac;
 }
+} // namespace ceres_nav
