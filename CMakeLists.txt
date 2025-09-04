@@ -20,6 +20,17 @@ find_package (Eigen3 3.3 REQUIRED NO_MODULE)
 find_package(Ceres 2.0.0 REQUIRED)
 find_package(Boost REQUIRED COMPONENTS system filesystem thread date_time program_options) # for timing
 
+# Lie++ library
+include(FetchContent)
+FetchContent_Declare(
+    LiePlusPlus
+    GIT_REPOSITORY  https://github.com/aau-cns/Lie-plusplus
+    GIT_TAG         main
+    GIT_SHALLOW     TRUE
+    GIT_PROGRESS    TRUE
+)
+FetchContent_MakeAvailable(LiePlusPlus)
+
 include_directories(
     include
     ${EIGEN3_INCLUDE_DIR}
@@ -28,7 +39,7 @@ include_directories(
 )
 
 message(STATUS "OPENCV: " ${OpenCV_VERSION} " | BOOST: " ${Boost_VERSION})
-
+message(STATUS "Lie++ VER: " ${LiePlusPlus_VERSION})
 option(BUILD_TESTS "Build tests" ON)
 
 ## Library source files
@@ -81,6 +92,7 @@ target_link_libraries(${PROJECT_NAME}
     Eigen3::Eigen
     ${CERES_LIBRARIES}
     ${Boost_LIBRARIES}
+    LiePlusPlus
 )
 
 if (OPTION_BUILD_EXAMPLES) 
@@ -104,3 +116,8 @@ install(TARGETS ${PROJECT_NAME}
 install(DIRECTORY include/
     DESTINATION include
 )
+
+
+add_executable(lie_example src/lie_plusplus.cpp)
+target_include_directories(lie_example PRIVATE include)
+target_link_libraries(lie_example ceres_nav ${CERES_LIBRARIES} ${Boost_LIBRARIES} LiePlusPlus)
