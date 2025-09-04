@@ -3,6 +3,8 @@
 #include "lie/SE3.h"
 #include "lie/SO3.h"
 
+namespace ceres_nav {
+
 bool AbsolutePositionFactor::Evaluate(double const *const *parameters,
                                       double *residuals,
                                       double **jacobians) const {
@@ -63,3 +65,5 @@ bool AbsolutePositionFactor::Evaluate(double const *const *parameters,
 
   return true;
 }
+
+} // namespace ceres_nav

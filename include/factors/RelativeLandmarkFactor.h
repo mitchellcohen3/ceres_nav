@@ -6,6 +6,7 @@
 
 #include "lib/ExtendedPoseParameterBlock.h"
 
+namespace ceres_nav {
 /**
  * @brief A factor for relative landmark measurements of the form
  *    y = C_ab.T * (r_pw_a - r_zw_a),
@@ -41,3 +42,5 @@ public:
   bool Evaluate(double const *const *parameters, double *residuals,
                 double **jacobians) const;
 };
+
+} // namespace ceres_nav

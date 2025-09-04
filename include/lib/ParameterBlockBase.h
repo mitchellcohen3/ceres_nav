@@ -4,6 +4,7 @@
 #include <ceres/ceres.h>
 #include <memory>
 
+namespace ceres_nav {
 /**
  * @brief Abstract base class for parameter blocks in
  * Ceres.
@@ -71,3 +72,5 @@ protected:
   // Local parameterization for this parameter block
   ceres::LocalParameterization *local_parameterization_ptr_;
 };
+
+} // namespace ceres_nav

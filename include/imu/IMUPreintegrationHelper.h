@@ -5,6 +5,7 @@
 
 #include "imu/IMUIncrement.h"
 
+namespace ceres_nav {
 /**
  * @brief Simple struct to hold the IMU state components.
  */
@@ -34,9 +35,7 @@ struct IMUStateHolder {
 class IMUPreintegrationHelper {
 public:
   IMUPreintegrationHelper(const IMUIncrement &imu_increment,
-                          bool use_group_jacobians,
-                          const LieDirection &direction,
-                          ExtendedPoseRepresentation pose_rep);
+                          bool use_group_jacobians);
 
   // Main method to compute Jacobians based on representation and direction
   std::vector<Eigen::Matrix<double, 15, 15>>
@@ -68,7 +67,7 @@ public:
 
   // Gets the covariance of the preintegrated measurement
   Eigen::Matrix<double, 15, 15> covariance() const { return rmi.covariance; }
-  
+
   double startStamp() const { return rmi.start_stamp; }
   double endStamp() const { return rmi.end_stamp; }
 
@@ -78,3 +77,5 @@ private:
   LieDirection direction;
   ExtendedPoseRepresentation pose_rep;
 };
+
+} // namespace ceres_nav

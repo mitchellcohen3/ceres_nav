@@ -219,7 +219,7 @@ std::vector<IMUState> loadIMUStates(const std::string &fname) {
     Eigen::Vector3d accel_bias{values[14], values[15], values[16]};
 
     Eigen::Matrix<double, 5, 5> nav_state =
-        SE23::fromComponents(C_ab, velocity, position);
+        ceres_nav::SE23::fromComponents(C_ab, velocity, position);
     imu_states.push_back(IMUState(nav_state, gyro_bias, accel_bias, stamp));
   }
 
@@ -233,9 +233,9 @@ void propagateIMUState(IMUState &state, const IMUMessage &imu_msg, const Eigen::
   Eigen::Vector3d unbiased_gyro = imu_msg.gyro - state.gyroBias();
   Eigen::Vector3d unbiased_accel = imu_msg.accel - state.accelBias();
 
-  Eigen::Matrix<double, 5, 5> G = createGMatrix(gravity, dt);
+  Eigen::Matrix<double, 5, 5> G = ceres_nav::createGMatrix(gravity, dt);
   Eigen::Matrix<double, 5, 5> U =
-      createUMatrix(unbiased_gyro, unbiased_accel, dt);
+      ceres_nav::createUMatrix(unbiased_gyro, unbiased_accel, dt);
 
   Eigen::Matrix<double, 5, 5> prev_extended_pose = state.navState();
   Eigen::Matrix<double, 5, 5> next_extended_pose = G * prev_extended_pose * U;

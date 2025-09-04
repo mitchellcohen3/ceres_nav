@@ -10,6 +10,8 @@
 
 #include <glog/logging.h>
 
+namespace ceres_nav {
+
 IMUIncrement::IMUIncrement(Eigen::Matrix<double, 12, 12> Q_ct_,
                            Eigen::Vector3d init_gyro_bias,
                            Eigen::Vector3d init_accel_bias, double init_stamp,
@@ -86,6 +88,7 @@ void IMUIncrement::propagateCovarianceAndBiasJacobian(
   if (pose_rep == ExtendedPoseRepresentation::SE23) {
     computeContinuousTimeJacobiansSE23(C, v, r, omega, accel, A_ct, L_ct);
   } else if (pose_rep == ExtendedPoseRepresentation::Decoupled) {
+    // LOG(INFO) << "Decoupled Jacobians...";
     computeContinuousTimeJacobiansDecoupled(C, v, r, omega, accel, A_ct, L_ct);
   } else {
     LOG(FATAL) << "Unknown pose representation: " << static_cast<int>(pose_rep);
@@ -117,8 +120,9 @@ void IMUIncrement::computeContinuousTimeJacobiansDecoupled(
   L_ct.setZero();
 
   if (direction == LieDirection::left) {
-    LOG(INFO) << "Left lie direction for decoupled navigation state "
+    LOG(ERROR) << "Left lie direction for decoupled navigation state "
                  "representation not yet supported with IMU increment!"; 
+    std::exit(EXIT_FAILURE);
   } else if (direction == LieDirection::right) {
     Eigen::Vector3d unbiased_gyro = omega - gyro_bias;
     Eigen::Vector3d unbiased_accel = accel - accel_bias;
@@ -195,3 +199,4 @@ void IMUIncrement::repropagate(const Eigen::Vector3d &init_gyro_bias,
     propagate(dt_buf[i], gyr_buf[i], acc_buf[i]);
   }
 }
+} // namespace ceres_nav

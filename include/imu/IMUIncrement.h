@@ -5,6 +5,8 @@
 #include <Eigen/Dense>
 #include <vector>
 
+namespace ceres_nav {
+
 class IMUIncrement {
 public:
   // Initial gyro and accel bias
@@ -90,3 +92,5 @@ protected:
       const Eigen::Vector3d &accel, Eigen::Matrix<double, 15, 15> &A_ct,
       Eigen::Matrix<double, 15, 12> &L_ct);
 };
+
+} // namespace ceres_nav

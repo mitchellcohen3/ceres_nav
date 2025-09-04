@@ -4,6 +4,8 @@
 #include <Eigen/Dense>
 #include <ceres/ceres.h>
 
+namespace ceres_nav {
+
 class SO3LocalParameterization : public ceres::LocalParameterization {
 public:
   SO3LocalParameterization(LieDirection direction = LieDirection::left)
@@ -37,3 +39,4 @@ public:
 protected:
   LieDirection _direction;
 };
+} // namespace ceres_nav

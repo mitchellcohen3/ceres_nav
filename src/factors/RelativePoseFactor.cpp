@@ -1,6 +1,8 @@
 #include "factors/RelativePoseFactor.h"
 #include "lie/SE3.h"
 
+namespace ceres_nav {
+
 RelativePoseFactor::RelativePoseFactor(
     const Eigen::Matrix4d &meas_,
     const Eigen::Matrix<double, 6, 6> &sqrt_info_,
@@ -86,3 +88,4 @@ bool RelativePoseFactor::Evaluate(double const *const *parameters,
 
   return true;
 }
+} // namespace ceres_nav

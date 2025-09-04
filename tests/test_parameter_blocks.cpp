@@ -7,6 +7,8 @@
 
 #include "lie/SO3.h"
 
+using namespace ceres_nav;
+
 TEST_CASE("Test Parameter Blocks") {
   ParameterBlock<3> block("3d_point");
   REQUIRE(block.dimension() == 3);

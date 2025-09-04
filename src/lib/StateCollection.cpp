@@ -2,6 +2,8 @@
 #include "lib/StateId.h"
 #include "utils/Utils.h"
 
+namespace ceres_nav {
+
 void StateCollection::addState(const std::string &name, double timestamp,
                                std::shared_ptr<ParameterBlockBase> state) {
   int64_t timestamp_key = timestampToKey(timestamp);
@@ -108,12 +110,12 @@ StateCollection::getStateByEstimatePointer(double *ptr) const {
 }
 
 bool StateCollection::getStateIDByEstimatePointer(
-    double *ptr, ceres_nav::StateID &state_id) const {
+    double *ptr, StateID &state_id) const {
   for (auto const &state_map_ : states_) {
     for (auto const &state : state_map_.second) {
       if (state.second->estimatePointer() == ptr) {
         state_id =
-            ceres_nav::StateID(state_map_.first, keyToTimestamp(state.first));
+            StateID(state_map_.first, keyToTimestamp(state.first));
         return true;
       }
     }
@@ -140,3 +142,5 @@ StateCollection::getLatestState(const std::string &key) const {
   }
   return nullptr;
 }
+
+} // namespace ceres_nav

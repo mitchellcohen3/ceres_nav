@@ -3,6 +3,7 @@
 #include <chrono>
 #include <memory>
 
+namespace ceres_nav {
 class Timer {
 public:
   using Clock = std::chrono::high_resolution_clock;
@@ -18,3 +19,4 @@ public:
 private:
   TimePoint start_time_;
 };
+} // namespace ceres_nav

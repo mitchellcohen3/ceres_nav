@@ -2,6 +2,8 @@
 #include "lie/SE23.h"
 #include "lie/SO3.h"
 
+namespace ceres_nav {
+
 /**
  * ExtendedPoseLocalParameterization::Plus defines the update rule for elements
  * of SE_2(3). This function defines how to increment parameters x, given a
@@ -43,3 +45,4 @@ bool DecoupledExtendedPoseLocalParameterization::Plus(
   x_plus_delta_raw.block<3, 1>(12, 0) = r_new;
   return true;
 }
+} // namespace ceres_nav

@@ -7,10 +7,11 @@
 
 #include <glog/logging.h>
 
+namespace ceres_nav {
+
 IMUPreintegrationFactor::IMUPreintegrationFactor(
-    IMUIncrement imu_increment_, bool use_group_jacobians_,
-    const LieDirection &direction_, ExtendedPoseRepresentation pose_rep_)
-    : helper{imu_increment_, use_group_jacobians_, direction_, pose_rep_} {}
+    const IMUIncrement &imu_increment_, bool use_group_jacobians_)
+    : helper{imu_increment_, use_group_jacobians_} {}
 
 bool IMUPreintegrationFactor::Evaluate(double const *const *parameters,
                                        double *residuals,
@@ -105,3 +106,4 @@ bool IMUPreintegrationFactor::Evaluate(double const *const *parameters,
   }
   return true;
 }
+} // namespace ceres_nav

@@ -3,6 +3,8 @@
 #include "ParameterBlockBase.h"
 #include <Eigen/Dense>
 
+namespace ceres_nav {
+
 /**
  * @brief Templated parameter block for optimization in Ceres.
  *
@@ -82,3 +84,5 @@ protected:
   Eigen::Matrix<double, Dim, 1> estimate_;
   Eigen::Matrix<double, MinimalDim, MinimalDim> covariance_;
 };
+
+} // namespace ceres_nav

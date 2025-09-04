@@ -1,3 +1,5 @@
-#pragma once 
+#pragma once
 
-enum class LieDirection { left, right };
+namespace ceres_nav {
+    enum class LieDirection { left, right };
+} // namespace ceres_nav

@@ -4,6 +4,8 @@
 #include <Eigen/Dense>
 #include <iostream>
 
+namespace ceres_nav {
+
 Eigen::Matrix4d SE3::wedge(const Eigen::Matrix<double, 6, 1> &xi) {
   Eigen::Matrix4d X;
   // clang-format off
@@ -179,3 +181,5 @@ Eigen::Matrix<double, 6, 1> SE3::minus(const Eigen::Matrix<double, 4, 4> &Y,
     return Eigen::Matrix<double, 6, 1>::Zero();
   }
 }
+
+} // namespace ceres_nav

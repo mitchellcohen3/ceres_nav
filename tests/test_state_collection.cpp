@@ -14,6 +14,8 @@
 
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
+using namespace ceres_nav;
+
 TEST_CASE("Test Add/Remove Operations") {
   StateCollection state_collection;
 

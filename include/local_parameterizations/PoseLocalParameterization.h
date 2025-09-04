@@ -1,14 +1,15 @@
 #pragma once
 
+#include "lie/LieDirection.h"
 #include <Eigen/Dense>
 #include <ceres/ceres.h>
-#include "lie/LieDirection.h"
 
+namespace ceres_nav {
 class PoseLocalParameterization : public ceres::LocalParameterization {
 public:
   PoseLocalParameterization(LieDirection direction = LieDirection::left)
       : _direction(direction) {}
-      
+
   /**
    * @brief State update funciton for the extended Pose state.
    */
@@ -51,6 +52,7 @@ public:
    */
   Eigen::Matrix<double, 12, 6> getEigenJacobian() const;
 
-  protected: 
-    LieDirection _direction;
+protected:
+  LieDirection _direction;
 };
+} // namespace ceres_nav

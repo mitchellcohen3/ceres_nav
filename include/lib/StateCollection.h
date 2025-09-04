@@ -11,6 +11,8 @@ namespace ceres_nav {
   struct StateID;
 }
 
+namespace ceres_nav {
+
 /**
  * @brief Holds a collection of states in time, accessible by a string key and a
  * timestamp.
@@ -92,7 +94,7 @@ public:
    * 
    * Returns false if the pointer is not found.
    */
-  bool getStateIDByEstimatePointer(double *ptr, ceres_nav::StateID &state_id) const;
+  bool getStateIDByEstimatePointer(double *ptr, StateID &state_id) const;
 
 
   // Check if a state exists at a given timestamp
@@ -185,3 +187,5 @@ protected:
                      std::map<int64_t, std::shared_ptr<ParameterBlockBase>>>
       states_;
 };
+
+} // namespace ceres_nav

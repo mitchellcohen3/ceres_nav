@@ -17,6 +17,7 @@
 #include "utils/Utils.h"
 
 namespace po = boost::program_options;
+using namespace ceres_nav;
 
 po::variables_map handle_args(int argc, const char *argv[]) {
   po::options_description options("Allowed options");

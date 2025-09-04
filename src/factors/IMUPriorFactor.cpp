@@ -5,6 +5,7 @@
 
 #include <string>
 
+namespace ceres_nav {
 IMUPriorFactor::IMUPriorFactor(
     const Eigen::Matrix<double, 5, 5> &prior_nav_state,
     const Eigen::Matrix<double, 6, 1> &prior_imu_bias,
@@ -76,3 +77,4 @@ bool IMUPriorFactor::Evaluate(double const *const *parameters,
 
   return true;
 }
+} // namespace ceres_nav
