@@ -37,6 +37,25 @@ void FactorGraph::addState(const std::string &name, double timestamp,
   }
 }
 
+void FactorGraph::addStaticState(const std::string &name,
+                                 std::shared_ptr<ParameterBlockBase> state) {
+  states_.addStaticState(name, state);
+
+  // Get the mean pointer
+  double *estimate_ptr = state->estimatePointer();
+  int size = state->dimension();
+
+  ceres::LocalParameterization *local_parameterization_ptr =
+      state->getLocalParameterizationPointer();
+
+  if (local_parameterization_ptr != nullptr) {
+    problem_.AddParameterBlock(estimate_ptr, state->dimension(),
+                               local_parameterization_ptr);
+  } else {
+    problem_.AddParameterBlock(estimate_ptr, size);
+  }
+}
+
 // Add a factor to the problem
 void FactorGraph::addFactor(const std::vector<StateID> &state_ids,
                             ceres::CostFunction *cost_function, double stamp,
@@ -44,13 +63,27 @@ void FactorGraph::addFactor(const std::vector<StateID> &state_ids,
   // Build vector of state pointers
   std::vector<double *> state_ptrs;
   for (auto &state_id : state_ids) {
-    if (!states_.hasState(state_id.ID, state_id.timestamp)) {
-      LOG(ERROR) << "Trying to add a factor with state that does not exist: "
-                 << state_id.ID << " at timestamp: " << state_id.timestamp;
-      return;
+    std::shared_ptr<ParameterBlockBase> state;
+    // For static states, we don't have a timestamp
+    if (state_id.isStatic()) {
+      state = states_.getStaticState(state_id.ID);
+      if (!state) {
+        LOG(ERROR)
+            << "Trying to add a factor with static state that does not exist: "
+            << state_id.ID;
+        return;
+      }
+    } else {
+      // For timestamped states
+      state = states_.getState(state_id.ID, state_id.timestamp.value());
+      if (!state) {
+        LOG(ERROR) << "Trying to add a factor with state that does not exist: "
+                   << state_id.ID << " at timestamp: " << state_id.timestamp.value();
+        return;
+      }
     }
-    state_ptrs.push_back(
-        states_.getState(state_id.ID, state_id.timestamp)->estimatePointer());
+
+    state_ptrs.push_back(state->estimatePointer());
   }
 
   // Add the residual block to the problem
@@ -86,18 +119,28 @@ bool FactorGraph::getStatePointers(const std::vector<StateID> &state_ids,
                                    std::vector<double *> &state_ptrs) const {
   // Get the pointers to the states
   for (auto &state_id : state_ids) {
-    if (!states_.hasState(state_id.ID, state_id.timestamp)) {
-      LOG(ERROR) << "State not found in collection: " << state_id.ID
-                 << " at timestamp: " << state_id.timestamp;
-      return false;
+    std::shared_ptr<ParameterBlockBase> state;
+
+    if (state_id.isStatic()) {
+      state = states_.getStaticState(state_id.ID);
+      if (!state) {
+        LOG(ERROR) << "State not found in collection: " << state_id.ID;
+        return false;
+      }
+    } else {
+      state = states_.getState(state_id.ID, state_id.timestamp.value());
+      if (!state) {
+        LOG(ERROR) << "State not found in collection: " << state_id.ID
+                   << " at timestamp: " << state_id.timestamp.value();
+        return false;
+      }
     }
 
-    // Ensure that this is actually in the Ceres problem
-    double *state_ptr =
-        states_.getState(state_id.ID, state_id.timestamp)->estimatePointer();
+    double *state_ptr = state->estimatePointer();
+
     if (!problem_.HasParameterBlock(state_ptr)) {
       LOG(ERROR) << "State not found in Ceres problem: " << state_id.ID
-                 << " at timestamp: " << state_id.timestamp;
+                 << " at timestamp: " << state_id.timestamp.value();
       return false;
     }
     state_ptrs.push_back(state_ptr);
@@ -328,8 +371,8 @@ bool FactorGraph::marginalizeStates(std::vector<StateID> states_m) {
     // Store a copy of the original states
     std::vector<Eigen::VectorXd> original_states;
     for (int n = 0; n < connected_state_ptrs.size(); n++) {
-      Eigen::Map<Eigen::VectorXd> state_vec(
-          connected_state_ptrs.at(n), global_size.at(n));
+      Eigen::Map<Eigen::VectorXd> state_vec(connected_state_ptrs.at(n),
+                                            global_size.at(n));
       Eigen::VectorXd state_copy = state_vec;
       original_states.emplace_back(state_copy);
     }
@@ -352,7 +395,7 @@ bool FactorGraph::marginalizeStates(std::vector<StateID> states_m) {
   // Remove marginalized states in reverse order
   std::reverse(states_m.begin(), states_m.end());
   for (const StateID &state : states_m) {
-    removeState(state.ID, state.timestamp);
+    removeState(state.ID, state.timestamp.value());
   }
 
   // Get the marginalization time
@@ -393,8 +436,8 @@ void FactorGraph::getMarginalizationInfo(
     }
   }
 
-  // Now that we have all the connected factors, get all states involed in those
-  // factors
+  // Now that we have all the connected factors, get all states involed in
+  // those factors
   std::set<double *> connected_state_ptrs_set;
   for (const ceres::ResidualBlockId factor : connected_factor_ids) {
     // Get the states that are connected to this factor
@@ -454,7 +497,8 @@ bool FactorGraph::getMarkovBlanketInfo(
                          global_sizes, local_sizes, connected_state_ids,
                          local_param_ptrs);
 
-  // Next, get any factors that are connected to states in connected_state_ptrs
+  // Next, get any factors that are connected to states in
+  // connected_state_ptrs
   std::vector<ceres::ResidualBlockId> connected_factors;
   if (!getConnectedFactorIDs(connected_state_ptrs, connected_factors)) {
     LOG(ERROR) << "Failed to get connected factor IDs for Markov blanket info.";
@@ -472,91 +516,90 @@ bool FactorGraph::getMarkovBlanketInfo(
   return true;
 }
 
-  std::vector<ceres::CostFunction *> FactorGraph::getCostFunctionPtrs() {
-    std::vector<ceres::CostFunction *> cost_functions;
-    std::vector<ceres::ResidualBlockId> residual_blocks;
-    problem_.GetResidualBlocks(&residual_blocks);
+std::vector<ceres::CostFunction *> FactorGraph::getCostFunctionPtrs() {
+  std::vector<ceres::CostFunction *> cost_functions;
+  std::vector<ceres::ResidualBlockId> residual_blocks;
+  problem_.GetResidualBlocks(&residual_blocks);
 
-    // Extract cost functions from map
-    for (auto const &residual_block : residual_blocks) {
-      // Check if this is actually in the map
-      if (residual_blocks_to_cost_function_map.find(residual_block) ==
-          residual_blocks_to_cost_function_map.end()) {
-        LOG(ERROR)
-            << "Residual block ID not found in the map! Residual block ID: "
-            << residual_block;
-        return std::vector<ceres::CostFunction *>();
-      }
-      cost_functions.push_back(
-          residual_blocks_to_cost_function_map.at(residual_block));
+  // Extract cost functions from map
+  for (auto const &residual_block : residual_blocks) {
+    // Check if this is actually in the map
+    if (residual_blocks_to_cost_function_map.find(residual_block) ==
+        residual_blocks_to_cost_function_map.end()) {
+      LOG(ERROR)
+          << "Residual block ID not found in the map! Residual block ID: "
+          << residual_block;
+      return std::vector<ceres::CostFunction *>();
     }
-    return cost_functions;
+    cost_functions.push_back(
+        residual_blocks_to_cost_function_map.at(residual_block));
+  }
+  return cost_functions;
+}
+
+ceres::CostFunction *
+FactorGraph::getCostFunction(const ceres::ResidualBlockId &residual_id) const {
+  auto it = residual_blocks_to_cost_function_map.find(residual_id);
+  if (it != residual_blocks_to_cost_function_map.end()) {
+    return it->second;
+  }
+  LOG(ERROR) << "Residual block ID not found in the map: " << residual_id;
+  return nullptr;
+}
+
+Eigen::MatrixXd FactorGraph::evaluateJacobian(bool include_fixed_parameters) {
+  std::vector<double> residuals;
+  std::vector<double *> all_param_blocks;
+  ceres::CRSMatrix jacobian_crs;
+  problem_.GetParameterBlocks(&all_param_blocks);
+
+  std::vector<double *> parameter_blocks;
+  for (double *block : all_param_blocks) {
+    // Skip constant blocks if not including fixed parameters
+    if (problem_.IsParameterBlockConstant(block) && !include_fixed_parameters) {
+      continue;
+    }
+    parameter_blocks.push_back(block);
   }
 
-  ceres::CostFunction *FactorGraph::getCostFunction(
-      const ceres::ResidualBlockId &residual_id) const {
-    auto it = residual_blocks_to_cost_function_map.find(residual_id);
-    if (it != residual_blocks_to_cost_function_map.end()) {
-      return it->second;
-    }
-    LOG(ERROR) << "Residual block ID not found in the map: " << residual_id;
-    return nullptr;
+  ceres::Problem::EvaluateOptions options;
+  options.apply_loss_function = true;
+  options.num_threads = static_cast<int>(std::thread::hardware_concurrency());
+  options.parameter_blocks = parameter_blocks;
+
+  problem_.Evaluate(options, nullptr, &residuals, nullptr, &jacobian_crs);
+
+  // Convert the CRS matrix to an Eigen matrix
+  ceres_nav::Matrix jacobian;
+  ceres_nav::CRSToMatrix(jacobian_crs, jacobian);
+
+  return jacobian;
+}
+
+Eigen::MatrixXd
+FactorGraph::evaluateJacobian(const std::vector<StateID> &states) {
+  std::vector<double *> state_ptrs;
+  if (!getStatePointers(states, state_ptrs)) {
+    LOG(ERROR) << "Failed to get state pointers for Jacobian evaluation.";
+    return Eigen::MatrixXd();
   }
 
-  Eigen::MatrixXd FactorGraph::evaluateJacobian(bool include_fixed_parameters) {
-    std::vector<double> residuals;
-    std::vector<double *> all_param_blocks;
-    ceres::CRSMatrix jacobian_crs;
-    problem_.GetParameterBlocks(&all_param_blocks);
+  std::vector<double> residuals;
+  ceres::CRSMatrix jacobian_crs;
 
-    std::vector<double *> parameter_blocks;
-    for (double *block : all_param_blocks) {
-      // Skip constant blocks if not including fixed parameters
-      if (problem_.IsParameterBlockConstant(block) &&
-          !include_fixed_parameters) {
-        continue;
-      }
-      parameter_blocks.push_back(block);
-    }
+  ceres::Problem::EvaluateOptions options;
+  options.apply_loss_function = true;
+  options.num_threads = static_cast<int>(std::thread::hardware_concurrency());
+  options.parameter_blocks = state_ptrs;
+  // options.residual_blocks =
 
-    ceres::Problem::EvaluateOptions options;
-    options.apply_loss_function = true;
-    options.num_threads = static_cast<int>(std::thread::hardware_concurrency());
-    options.parameter_blocks = parameter_blocks;
+  problem_.Evaluate(options, nullptr, &residuals, nullptr, &jacobian_crs);
 
-    problem_.Evaluate(options, nullptr, &residuals, nullptr, &jacobian_crs);
+  // Convert the CRS matrix to an Eigen matrix
+  ceres_nav::Matrix jacobian;
+  ceres_nav::CRSToMatrix(jacobian_crs, jacobian);
 
-    // Convert the CRS matrix to an Eigen matrix
-    ceres_nav::Matrix jacobian;
-    ceres_nav::CRSToMatrix(jacobian_crs, jacobian);
-
-    return jacobian;
-  }
-
-  Eigen::MatrixXd FactorGraph::evaluateJacobian(
-      const std::vector<StateID> &states) {
-    std::vector<double *> state_ptrs;
-    if (!getStatePointers(states, state_ptrs)) {
-      LOG(ERROR) << "Failed to get state pointers for Jacobian evaluation.";
-      return Eigen::MatrixXd();
-    }
-
-    std::vector<double> residuals;
-    ceres::CRSMatrix jacobian_crs;
-
-    ceres::Problem::EvaluateOptions options;
-    options.apply_loss_function = true;
-    options.num_threads = static_cast<int>(std::thread::hardware_concurrency());
-    options.parameter_blocks = state_ptrs;
-    // options.residual_blocks =
-
-    problem_.Evaluate(options, nullptr, &residuals, nullptr, &jacobian_crs);
-
-    // Convert the CRS matrix to an Eigen matrix
-    ceres_nav::Matrix jacobian;
-    ceres_nav::CRSToMatrix(jacobian_crs, jacobian);
-
-    return jacobian;
-  }
+  return jacobian;
+}
 
 } // namespace ceres_nav

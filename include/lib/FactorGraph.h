@@ -37,6 +37,12 @@ public:
                 std::shared_ptr<ParameterBlockBase> state);
 
   /**
+   * @brief Adds a static (non-timestamped) state to the problem.
+   */
+  void addStaticState(const std::string &name,
+                      std::shared_ptr<ParameterBlockBase> state);
+
+  /**
    * @brief Adds a factor to the problem.
    * @param state_ids A vector of StateID objects that the factor is connected
    * to
@@ -61,21 +67,25 @@ public:
   /** Get information about the internal Ceres problem. */
   bool getStatePointers(const std::vector<StateID> &StateIDs,
                         std::vector<double *> &state_ptrs) const;
-  bool getConnectedFactorIDs(const std::vector<double *> &StatePointers,
-                             std::vector<ceres::ResidualBlockId> &factors) const;
+  bool
+  getConnectedFactorIDs(const std::vector<double *> &StatePointers,
+                        std::vector<ceres::ResidualBlockId> &factors) const;
   bool
   getConnectedStatePointers(const std::vector<ceres::ResidualBlockId> &factors,
                             std::vector<double *> &StatePointers);
   /**
-   * @brief Gets the information about the connected states and factors 
+   * @brief Gets the information about the connected states and factors
    * to the states in states_m.
-   * 
+   *
    * @param states_m The states to get the Markov blanket information for.
-   * @param connected_state_ptrs Output vector of pointers to the connected states.
-   * @param factors_m Output vector of residual block IDs for the factors connected to the states
-   * @param factors_r Output vector of residual block IDs for the factors involved with the connected states,
-   *                  that are not in factors_m.
-   * @param connected_state_ids Output vector of StateID objects for the connected states.
+   * @param connected_state_ptrs Output vector of pointers to the connected
+   * states.
+   * @param factors_m Output vector of residual block IDs for the factors
+   * connected to the states
+   * @param factors_r Output vector of residual block IDs for the factors
+   * involved with the connected states, that are not in factors_m.
+   * @param connected_state_ids Output vector of StateID objects for the
+   * connected states.
    */
   bool getMarkovBlanketInfo(const std::vector<StateID> &states_m,
                             std::vector<double *> &connected_state_ptrs,
@@ -167,8 +177,8 @@ public:
   /**
    * @brief Retrieves the cost function for a given residual block ID.
    */
-  ceres::CostFunction *getCostFunction(
-      const ceres::ResidualBlockId &residual_id) const;
+  ceres::CostFunction *
+  getCostFunction(const ceres::ResidualBlockId &residual_id) const;
 
 protected:
   // The collection of states
