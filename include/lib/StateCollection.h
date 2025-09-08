@@ -111,6 +111,7 @@ public:
       }
     }
 
+    LOG(ERROR) << "Static state not found for key: " << key;
     return nullptr;
   }
 
