@@ -50,6 +50,12 @@ public:
   getStaticState(const std::string &key) const;
 
   /**
+   * @brief Gets a state for a given StateID (which may be static or timestamped).
+   * Returns nullptr if not found.
+   */
+  std::shared_ptr<ParameterBlockBase> getState(const StateID &state_id) const;
+
+  /**
    * @brief Templated version of get state that returns a state of a specific
    * type.
    *

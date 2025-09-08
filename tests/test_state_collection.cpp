@@ -178,6 +178,12 @@ TEST_CASE("Test Static States") {
     REQUIRE(found_state_2 != nullptr);
     REQUIRE(found_state_2->getEstimate().isApprox(Eigen::Vector3d(4.0, 5.0, 6.0)));
 
+    // Test retrieving a state by StateID
+    StateID static_id("x");
+    auto retrieved_static_state = state_collection.getState(static_id);
+    REQUIRE(retrieved_static_state != nullptr);
+    REQUIRE(retrieved_static_state->estimatePointer() == state_ptr);
+
     // Remove the static state
     state_collection.removeStaticState("x");
     REQUIRE(!state_collection.hasStaticState("x"));

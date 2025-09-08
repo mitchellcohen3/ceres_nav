@@ -37,11 +37,15 @@ void FactorGraph::addState(const std::string &name, double timestamp,
   }
 }
 
-void FactorGraph::addStaticState(const std::string &name,
-                                 std::shared_ptr<ParameterBlockBase> state) {
-  states_.addStaticState(name, state);
+void FactorGraph::addState(const StateID &state_id,
+                           std::shared_ptr<ParameterBlockBase> state) {
+  if (state_id.isStatic()) {
+    states_.addStaticState(state_id.ID, state);
+  } else {
+    states_.addState(state_id.ID, state_id.timestamp.value(), state);
+  }
 
-  // Get the mean pointer
+  // Common parameter block addition logic
   double *estimate_ptr = state->estimatePointer();
   int size = state->dimension();
 
@@ -78,7 +82,8 @@ void FactorGraph::addFactor(const std::vector<StateID> &state_ids,
       state = states_.getState(state_id.ID, state_id.timestamp.value());
       if (!state) {
         LOG(ERROR) << "Trying to add a factor with state that does not exist: "
-                   << state_id.ID << " at timestamp: " << state_id.timestamp.value();
+                   << state_id.ID
+                   << " at timestamp: " << state_id.timestamp.value();
         return;
       }
     }
@@ -224,15 +229,53 @@ void FactorGraph::removeState(const std::string &name, double timestamp) {
     }
   }
 
-  // TODO: remove relevant residuals from the cost function map
-  // double state_ptr = states_.getState(name, timestamp)->estimatePointer();
-
   // Remove from the Ceres problem
   problem_.RemoveParameterBlock(
       states_.getState(name, timestamp)->estimatePointer());
 
   // Remove from the StateCollection
   states_.removeState(name, timestamp);
+}
+
+void FactorGraph::removeState(const StateID &state_id) {
+  std::shared_ptr<ParameterBlockBase> state;
+
+  if (state_id.isStatic()) {
+    state = states_.getStaticState(state_id.ID);
+  } else {
+    state = states_.getState(state_id.ID, state_id.timestamp.value());
+  }
+
+  if (!state) {
+    LOG(ERROR) << "State not found in collection: " << state_id.ID;
+    if (!state_id.isStatic()) {
+      LOG(ERROR) << " at timestamp: " << state_id.timestamp.value();
+    }
+    return;
+  }
+
+  // Remove relevant residuals from the cost function map
+  std::vector<ceres::ResidualBlockId> residual_ids;
+  problem_.GetResidualBlocksForParameterBlock(state->estimatePointer(),
+                                              &residual_ids);
+  for (auto const &residual : residual_ids) {
+    if (residual_blocks_to_cost_function_map.find(residual) !=
+        residual_blocks_to_cost_function_map.end()) {
+      residual_blocks_to_cost_function_map.erase(residual);
+    } else {
+      LOG(WARNING) << "Residual block not found in map: " << residual;
+    }
+  }
+
+  // Remove from the Ceres problem
+  problem_.RemoveParameterBlock(state->estimatePointer());
+
+  // Remove from the StateCollection
+  if (state_id.isStatic()) {
+    states_.removeStaticState(state_id.ID);
+  } else {
+    states_.removeState(state_id.ID, state_id.timestamp.value());
+  }
 }
 
 void FactorGraph::setConstant(const std::string &name, double timestamp) {

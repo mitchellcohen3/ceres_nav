@@ -57,6 +57,15 @@ StateCollection::getStaticState(const std::string &key) const {
   return nullptr;
 }
 
+std::shared_ptr<ParameterBlockBase>
+StateCollection::getState(const StateID &state_id) const {
+  if (state_id.isStatic()) {
+    return getStaticState(state_id.ID);
+  } else {
+    return getState(state_id.ID, state_id.timestamp.value());
+  }
+}
+
 bool StateCollection::hasState(const std::string &key, double timestamp) const {
   int64_t timestamp_key = timestampToKey(timestamp);
   auto it1 = states_.find(key);
@@ -154,6 +163,7 @@ StateCollection::getStateByEstimatePointer(double *ptr) const {
 
 bool StateCollection::getStateIDByEstimatePointer(double *ptr,
                                                   StateID &state_id) const {
+  // Check all timestamped states first
   for (auto const &state_map_ : states_) {
     for (auto const &state : state_map_.second) {
       if (state.second->estimatePointer() == ptr) {
@@ -162,6 +172,15 @@ bool StateCollection::getStateIDByEstimatePointer(double *ptr,
       }
     }
   }
+
+  // Check static states next
+  for (auto const &static_state : static_states_) {
+    if (static_state.second->estimatePointer() == ptr) {
+      state_id = StateID(static_state.first);
+      return true;
+    }
+  }
+
   return false;
 }
 

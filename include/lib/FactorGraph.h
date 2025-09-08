@@ -36,11 +36,8 @@ public:
   void addState(const std::string &name, double timestamp,
                 std::shared_ptr<ParameterBlockBase> state);
 
-  /**
-   * @brief Adds a static (non-timestamped) state to the problem.
-   */
-  void addStaticState(const std::string &name,
-                      std::shared_ptr<ParameterBlockBase> state);
+  void addState(const StateID &state_id,
+                std::shared_ptr<ParameterBlockBase> state);
 
   /**
    * @brief Adds a factor to the problem.
@@ -93,8 +90,15 @@ public:
                             std::vector<ceres::ResidualBlockId> &factors_r,
                             std::vector<StateID> &connected_state_ids) const;
 
-  // Remove states from the problem
+  /**
+   * @brief Removes a timestamped state from the problem.
+   */
   void removeState(const std::string &name, double timestamp);
+    
+  /**
+   * @brief Removes a state from the problem given a StateID.
+   */
+  void removeState(const StateID &state_id);
 
   /**
    * @brief Sets a state as constant in the optimization problem.
