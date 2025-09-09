@@ -36,6 +36,9 @@ public:
   void addState(const std::string &name, double timestamp,
                 std::shared_ptr<ParameterBlockBase> state);
 
+  /**
+   * @brief Adds a state to the problem with a particular StateID
+   */
   void addState(const StateID &state_id,
                 std::shared_ptr<ParameterBlockBase> state);
 
@@ -47,7 +50,7 @@ public:
    * @param stamp The timestamp for the factor
    * @param loss_function An optional Ceres loss function for the factor.
    */
-  void addFactor(const std::vector<StateID> &state_ids,
+  bool addFactor(const std::vector<StateID> &state_ids,
                  ceres::CostFunction *cost_function, double stamp,
                  ceres::LossFunction *loss_function = nullptr);
 
@@ -64,12 +67,6 @@ public:
   /** Get information about the internal Ceres problem. */
   bool getStatePointers(const std::vector<StateID> &StateIDs,
                         std::vector<double *> &state_ptrs) const;
-  bool
-  getConnectedFactorIDs(const std::vector<double *> &StatePointers,
-                        std::vector<ceres::ResidualBlockId> &factors) const;
-  bool
-  getConnectedStatePointers(const std::vector<ceres::ResidualBlockId> &factors,
-                            std::vector<double *> &StatePointers);
   /**
    * @brief Gets the information about the connected states and factors
    * to the states in states_m.
@@ -94,7 +91,7 @@ public:
    * @brief Removes a timestamped state from the problem.
    */
   void removeState(const std::string &name, double timestamp);
-    
+
   /**
    * @brief Removes a state from the problem given a StateID.
    */
@@ -117,11 +114,6 @@ public:
 
   // Marginalize states from the problem
   bool marginalizeStates(std::vector<StateID> state_ids);
-
-  // Get the cost functions for a set of residual blocks
-  bool getCostFunctionPointersForResidualBlocks(
-      const std::vector<ceres::ResidualBlockId> &residual_ids,
-      std::vector<ceres::CostFunction *> &cost_functions) const;
 
   /**
    * @brief Computes the covariance of a state with a given name at
@@ -178,13 +170,37 @@ public:
    */
   Eigen::MatrixXd evaluateJacobian(const std::vector<StateID> &state_ids);
 
+protected:
+  /**
+   * @brief Given a vector of state pointers, finds all the factors that are
+   * connected to those states, and returns their residual block IDs.
+   */
+  bool
+  getConnectedFactorIDs(const std::vector<double *> &StatePointers,
+                        std::vector<ceres::ResidualBlockId> &factors) const;
+
+  /**
+   * @brief Given a vector of factor residual block IDs, finds all the states
+   * that are connected.
+   */
+  bool
+  getConnectedStatePointers(const std::vector<ceres::ResidualBlockId> &factors,
+                            std::vector<double *> &StatePointers);
+
+  /**
+   * @brief Given a vector of residual block IDs, gets the corresponding cost
+   * function pointers.
+   */
+  bool getCostFunctionPointersForResidualBlocks(
+      const std::vector<ceres::ResidualBlockId> &residual_ids,
+      std::vector<ceres::CostFunction *> &cost_functions) const;
+
   /**
    * @brief Retrieves the cost function for a given residual block ID.
    */
   ceres::CostFunction *
   getCostFunction(const ceres::ResidualBlockId &residual_id) const;
 
-protected:
   // The collection of states
   StateCollection states_;
 

@@ -61,7 +61,7 @@ void FactorGraph::addState(const StateID &state_id,
 }
 
 // Add a factor to the problem
-void FactorGraph::addFactor(const std::vector<StateID> &state_ids,
+bool FactorGraph::addFactor(const std::vector<StateID> &state_ids,
                             ceres::CostFunction *cost_function, double stamp,
                             ceres::LossFunction *loss_function) {
   // Build vector of state pointers
@@ -75,7 +75,7 @@ void FactorGraph::addFactor(const std::vector<StateID> &state_ids,
         LOG(ERROR)
             << "Trying to add a factor with static state that does not exist: "
             << state_id.ID;
-        return;
+        return false;
       }
     } else {
       // For timestamped states
@@ -84,7 +84,7 @@ void FactorGraph::addFactor(const std::vector<StateID> &state_ids,
         LOG(ERROR) << "Trying to add a factor with state that does not exist: "
                    << state_id.ID
                    << " at timestamp: " << state_id.timestamp.value();
-        return;
+        return false;
       }
     }
 
@@ -97,6 +97,7 @@ void FactorGraph::addFactor(const std::vector<StateID> &state_ids,
 
   // Add to map
   residual_blocks_to_cost_function_map.insert({residual_id, cost_function});
+  return true;
 }
 
 void FactorGraph::solve() {
