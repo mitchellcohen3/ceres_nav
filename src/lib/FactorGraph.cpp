@@ -438,8 +438,8 @@ bool FactorGraph::marginalizeStates(std::vector<StateID> states_m) {
 
   // Remove marginalized states in reverse order
   std::reverse(states_m.begin(), states_m.end());
-  for (const StateID &state : states_m) {
-    removeState(state.ID, state.timestamp.value());
+  for (const StateID &state_id : states_m) {
+    removeState(state_id);
   }
 
   // Get the marginalization time
