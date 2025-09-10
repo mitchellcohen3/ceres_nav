@@ -10,8 +10,9 @@
 #include "lie/SE3.h"
 #include "lie/SO3.h"
 
-#include <catch2/catch_test_macros.hpp>
+#include "lib/StateId.h"
 
+#include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 using namespace ceres_nav;
@@ -147,3 +148,51 @@ TEST_CASE("Test Timestamp Operations") {
   REQUIRE(oldest_state->getEstimate().isApprox(state_values.front()));
   REQUIRE(latest_state->getEstimate().isApprox(state_values.back()));
 }
+
+TEST_CASE("Test Static States") {
+    StateCollection state_collection;
+
+    auto state_1 = std::make_shared<ParameterBlock<3>>(Eigen::Vector3d(1.0, 2.0, 3.0));
+    auto state_2 = std::make_shared<ParameterBlock<3>>(Eigen::Vector3d(4.0, 5.0, 6.0));
+
+    state_collection.addStaticState("x", state_1);
+    state_collection.addState("y", 0.0, state_2);
+
+    REQUIRE(state_collection.hasStaticState("x"));
+    REQUIRE(!state_collection.hasStaticState("y"));
+    REQUIRE(state_collection.hasStateType("x"));
+    REQUIRE(state_collection.hasState("y", 0.0));
+
+    auto static_state = state_collection.getStaticState<ParameterBlock<3>>("x");
+    REQUIRE(static_state != nullptr);
+    REQUIRE(static_state->getEstimate().isApprox(Eigen::Vector3d(1.0, 2.0, 3.0)));
+
+    // Try getting a state by it's estimate pointer
+    double* state_ptr = state_1->estimatePointer();
+    auto found_state = state_collection.getStateByEstimatePointer(state_ptr);
+    REQUIRE(found_state != nullptr);
+    REQUIRE(found_state->getEstimate().isApprox(Eigen::Vector3d(1.0, 2.0, 3.0)));
+
+    double* state_ptr_2 = state_2->estimatePointer();
+    auto found_state_2 = state_collection.getStateByEstimatePointer(state_ptr_2);
+    REQUIRE(found_state_2 != nullptr);
+    REQUIRE(found_state_2->getEstimate().isApprox(Eigen::Vector3d(4.0, 5.0, 6.0)));
+
+    // Test retrieving a state by StateID
+    StateID static_id("x");
+    auto retrieved_static_state = state_collection.getState(static_id);
+    REQUIRE(retrieved_static_state != nullptr);
+    REQUIRE(retrieved_static_state->estimatePointer() == state_ptr);
+
+    // Remove the static state
+    state_collection.removeStaticState("x");
+    REQUIRE(!state_collection.hasStaticState("x"));
+}
+
+// TEST_CASE("Test StateID") {
+//     StateID id1("x", 0.1);
+//     StateID id2("y");
+
+//     REQUIRE(!id1.isStatic());
+//     REQUIRE(id2.isStatic());
+// }

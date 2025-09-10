@@ -37,6 +37,12 @@ public:
                 std::shared_ptr<ParameterBlockBase> state);
 
   /**
+   * @brief Adds a state to the problem with a particular StateID
+   */
+  void addState(const StateID &state_id,
+                std::shared_ptr<ParameterBlockBase> state);
+
+  /**
    * @brief Adds a factor to the problem.
    * @param state_ids A vector of StateID objects that the factor is connected
    * to
@@ -44,7 +50,7 @@ public:
    * @param stamp The timestamp for the factor
    * @param loss_function An optional Ceres loss function for the factor.
    */
-  void addFactor(const std::vector<StateID> &state_ids,
+  bool addFactor(const std::vector<StateID> &state_ids,
                  ceres::CostFunction *cost_function, double stamp,
                  ceres::LossFunction *loss_function = nullptr);
 
@@ -61,21 +67,19 @@ public:
   /** Get information about the internal Ceres problem. */
   bool getStatePointers(const std::vector<StateID> &StateIDs,
                         std::vector<double *> &state_ptrs) const;
-  bool getConnectedFactorIDs(const std::vector<double *> &StatePointers,
-                             std::vector<ceres::ResidualBlockId> &factors) const;
-  bool
-  getConnectedStatePointers(const std::vector<ceres::ResidualBlockId> &factors,
-                            std::vector<double *> &StatePointers);
   /**
-   * @brief Gets the information about the connected states and factors 
-   * to the states in states_m.
-   * 
+   * @brief Gets the information about the connected states and factors
+   * to the states in states_m, states that we'd like to marginalize out.
+   *
    * @param states_m The states to get the Markov blanket information for.
-   * @param connected_state_ptrs Output vector of pointers to the connected states.
-   * @param factors_m Output vector of residual block IDs for the factors connected to the states
-   * @param factors_r Output vector of residual block IDs for the factors involved with the connected states,
-   *                  that are not in factors_m.
-   * @param connected_state_ids Output vector of StateID objects for the connected states.
+   * @param connected_state_ptrs Output vector of pointers to the connected
+   * states that are involed in factors with states_m.
+   * @param factors_m Output vector of residual block IDs for the factors
+   * connected to the states
+   * @param factors_r Output vector of residual block IDs for the factors
+   * involved with the connected states, that are not in factors_m.
+   * @param connected_state_ids Output vector of StateID objects for the
+   * connected states.
    */
   bool getMarkovBlanketInfo(const std::vector<StateID> &states_m,
                             std::vector<double *> &connected_state_ptrs,
@@ -83,8 +87,15 @@ public:
                             std::vector<ceres::ResidualBlockId> &factors_r,
                             std::vector<StateID> &connected_state_ids) const;
 
-  // Remove states from the problem
+  /**
+   * @brief Removes a timestamped state from the problem.
+   */
   void removeState(const std::string &name, double timestamp);
+
+  /**
+   * @brief Removes a state from the problem given a StateID.
+   */
+  void removeState(const StateID &state_id);
 
   /**
    * @brief Sets a state as constant in the optimization problem.
@@ -103,11 +114,6 @@ public:
 
   // Marginalize states from the problem
   bool marginalizeStates(std::vector<StateID> state_ids);
-
-  // Get the cost functions for a set of residual blocks
-  bool getCostFunctionPointersForResidualBlocks(
-      const std::vector<ceres::ResidualBlockId> &residual_ids,
-      std::vector<ceres::CostFunction *> &cost_functions) const;
 
   /**
    * @brief Computes the covariance of a state with a given name at
@@ -167,10 +173,34 @@ public:
   /**
    * @brief Retrieves the cost function for a given residual block ID.
    */
-  ceres::CostFunction *getCostFunction(
-      const ceres::ResidualBlockId &residual_id) const;
+  ceres::CostFunction *
+  getCostFunction(const ceres::ResidualBlockId &residual_id) const;
 
 protected:
+  /**
+   * @brief Given a vector of state pointers, finds all the factors that are
+   * connected to those states, and returns their residual block IDs.
+   */
+  bool
+  getConnectedFactorIDs(const std::vector<double *> &StatePointers,
+                        std::vector<ceres::ResidualBlockId> &factors) const;
+
+  /**
+   * @brief Given a vector of factor residual block IDs, finds all the states
+   * that are connected.
+   */
+  bool
+  getConnectedStatePointers(const std::vector<ceres::ResidualBlockId> &factors,
+                            std::vector<double *> &StatePointers);
+
+  /**
+   * @brief Given a vector of residual block IDs, gets the corresponding cost
+   * function pointers.
+   */
+  bool getCostFunctionPointersForResidualBlocks(
+      const std::vector<ceres::ResidualBlockId> &residual_ids,
+      std::vector<ceres::CostFunction *> &cost_functions) const;
+
   // The collection of states
   StateCollection states_;
 
