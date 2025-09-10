@@ -19,7 +19,7 @@ namespace ceres_nav {
  * in visual-inertial algorithms), it will take some thought on how to
  * genearalize it to SE3 pose parameters.
  */
-class RelativeLandmarkFactor : public ceres::SizedCostFunction<3, 15> {
+class RelativeLandmarkFactor : public ceres::SizedCostFunction<3, 15, 3> {
 public:
   Eigen::Vector3d meas;
   Eigen::Matrix3d sqrt_info;

@@ -93,10 +93,34 @@ $ cd navlie
 $ pip install -e .
 ```
 
-In this example, the state to be estimated is the IMU state, consisting of orientation $\mathbf{C}_{ab} \in SO(3)$, velocity $\mathbf{v}_a$, position $\mathbf{r}_a$, gyroscope bias, and accelerometer bias. This example showcases how the library allows for easily changing the state representation. For example, the user can either represent the state as an element of 
+## Implemented State Types and Factors
+The following state types are currently implemented in the library:
+- $\mathbb{R}^n$ states used to represent generic vector states,
+- $SO(3)$ states used to represent 3D orientations, 
+- $SE(3)$ states used to represent 3D poses (orientation + position),
+- $SE_2(3)$ states used to represent extended poses (orientation + velocity +
+  position), 
+
+The following factors are currently implemented in the library:
+- AbsolutePositionFactor for absolute position measurements from, for example, a GPS.
+- RelativePoseFactor - used to represent relative pose measurements (e.g., from
+  visual odometry or LiDAR odometry),
+- RelativeLandmarkFactor - used to represent 3D landmarks measurements in the
+  body frame of a sensor,
+- PreintegratedIMUFactor - represents a preintegrated IMU measurement between
+  two states.
 
 ## Acknowledgements
-This repo is inspired partially by [libRSF](https://github.com/TUC-ProAut/libRSF), another great library for robust estimation using Ceres. `libRSF` only supports autodiff cost functions, while this repo supports traditional Ceres cost functions with analytic differentiation and provides tools to additionally check Jacobians numerically. The use of analytical derivatives becomes important when implementing sliding window filters for specific problems, such as visual-inertial odometry where the evaluation point of the Jacobians must be artificially modified to ensure consistency. 
+The marginalization code in this repo is adapted from the
+[libRSF](https://github.com/TUC-ProAut/libRSF) library, another great library
+for robust estimation using Ceres. Parts of the structure of the repo are also
+inspired by `libRSF`. `libRSF` only supports autodiff cost functions, while this
+repo supports traditional Ceres cost functions with analytic differentiation and
+provides tools to additionally check Jacobians numerically. The use of
+analytical derivatives becomes important when implementing sliding window
+filters for specific problems, such as visual-inertial odometry where the
+evaluation point of the Jacobians must be artificially modified to ensure
+consistency after marginalization. 
 
 ## Disclaimer
 Note: this repo is still very much a work in progress, and more complex examples will be added soon! Contributions and thoughts are always welcome :)

@@ -69,11 +69,11 @@ public:
                         std::vector<double *> &state_ptrs) const;
   /**
    * @brief Gets the information about the connected states and factors
-   * to the states in states_m.
+   * to the states in states_m, states that we'd like to marginalize out.
    *
    * @param states_m The states to get the Markov blanket information for.
    * @param connected_state_ptrs Output vector of pointers to the connected
-   * states.
+   * states that are involed in factors with states_m.
    * @param factors_m Output vector of residual block IDs for the factors
    * connected to the states
    * @param factors_r Output vector of residual block IDs for the factors
