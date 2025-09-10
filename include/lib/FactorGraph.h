@@ -170,6 +170,12 @@ public:
    */
   Eigen::MatrixXd evaluateJacobian(const std::vector<StateID> &state_ids);
 
+  /**
+   * @brief Retrieves the cost function for a given residual block ID.
+   */
+  ceres::CostFunction *
+  getCostFunction(const ceres::ResidualBlockId &residual_id) const;
+
 protected:
   /**
    * @brief Given a vector of state pointers, finds all the factors that are
@@ -194,12 +200,6 @@ protected:
   bool getCostFunctionPointersForResidualBlocks(
       const std::vector<ceres::ResidualBlockId> &residual_ids,
       std::vector<ceres::CostFunction *> &cost_functions) const;
-
-  /**
-   * @brief Retrieves the cost function for a given residual block ID.
-   */
-  ceres::CostFunction *
-  getCostFunction(const ceres::ResidualBlockId &residual_id) const;
 
   // The collection of states
   StateCollection states_;
