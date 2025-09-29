@@ -35,6 +35,7 @@
 
 #include "lib/StateCollection.h"
 #include "lib/StateId.h"
+#include "lib/ParameterBlock.h"
 #include "utils/VectorTypes.h"
 
 #include <ceres/ceres.h>
@@ -52,13 +53,28 @@ enum class ParameterType {
 ParameterType
 getLocalParamType(const ceres::LocalParameterization *local_param);
 
+/**
+ * @brief Stores all the information about a parameter block. 
+ * Needed for the marginalization prior to evaluate delta_xi.
+ */
+struct ParameterBlockInfo {
+  std::shared_ptr<ParameterBlockBase> param_ptr;
+  size_t global_size;
+  size_t local_size;
+  ParameterType param_type;
+  Eigen::VectorXd linearization_point;
+  StateID state_id;
+};
+
 class MarginalizationPrior : public ceres::CostFunction {
 public:
-  MarginalizationPrior(
-      const std::vector<int> &LocalSize, const std::vector<int> &GlobalSize,
-      const std::vector<Eigen::VectorXd> &LinearizationPoints,
-      const std::vector<const ceres::LocalParameterization *> &LocalParamPtrs,
-      const Matrix &J, const Vector &R, const std::vector<StateID> &StateIDs);
+  // MarginalizationPrior(
+  //     const std::vector<int> &LocalSize, const std::vector<int> &GlobalSize,
+  //     const std::vector<Eigen::VectorXd> &LinearizationPoints,
+  //     const std::vector<const ceres::LocalParameterization *> &LocalParamPtrs,
+  //     const Matrix &J, const Vector &R, const std::vector<StateID>
+  //     &StateIDs);
+  MarginalizationPrior(const std::vector<ParameterBlockInfo> &parameter_blocks, const Matrix &J, const Vector &R);
 
   ~MarginalizationPrior() override = default;
 
@@ -66,6 +82,8 @@ public:
                 double **jacobians) const override;
 
 private:
+  std::vector<ParameterBlockInfo> parameter_blocks_;
+
   std::vector<int> LocalSize_;
   std::vector<int> GlobalSize_;
   std::vector<const ceres::LocalParameterization *> LocalParamPtrs_;

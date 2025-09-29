@@ -55,6 +55,12 @@ public:
                     double *x0_plus_Delta) const = 0;
   virtual void plusJacobian(const double *x0, double *jacobian) const = 0;
 
+  // Compute the minus operation between two parameter blocks
+  // The result is y \ominus x, where \ominus is the manifold minus operation.
+  // This is used in the marginalization prior factor when computing the
+  // difference between the current estimate and the linearization point.
+  virtual void minus(const double *y, const double *x, double *y_minus_x) const = 0;
+
   // Getters and setters for the covariance
   virtual Eigen::MatrixXd getCovariance() const = 0;
   virtual double *getCovariancePointer() = 0;

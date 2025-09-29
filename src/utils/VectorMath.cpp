@@ -26,6 +26,11 @@ namespace ceres_nav {
 
 void RobustSqrtAndInvSqrt(const Matrix &Mat, Matrix &MatSqrt,
                           Matrix &MatSqrtInv) {
+  // // Debug check - is matrix symmetric?
+  // if (!Mat.isApprox(Mat.transpose())) {
+  //   LOG(ERROR) << "Matrix is not symmetric in RobustSqrtAndInvSqrt!";
+  // }
+
   /** compute SVD */
   Eigen::SelfAdjointEigenSolver<Matrix> SAES(Mat);
 

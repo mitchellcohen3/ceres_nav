@@ -33,7 +33,7 @@
 
 #include "VectorTypes.h"
 
-#include <Eigen/Eigenvalues>
+#include <Eigen/Dense>
 #include <ceres/ceres.h>
 
 #include <algorithm>

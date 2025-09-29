@@ -23,7 +23,7 @@ class PoseParameterBlock : public ParameterBlock<12, 6> {
 public:
   explicit PoseParameterBlock(const std::string &name = "pose_parameter_block",
                               LieDirection direction = LieDirection::left)
-      : ParameterBlock<12, 6>(name) {
+      : ParameterBlock<12, 6>(name), direction_(direction) {
     // Create a local parameterization for SE(3) poses
     local_parameterization_ptr_ = new PoseLocalParameterization(direction);
   }
@@ -68,9 +68,7 @@ public:
   /**
    * @brief Get the position estimate
    */
-  Eigen::Vector3d position() const {
-    return this->getEstimate().tail<3>();
-  }
+  Eigen::Vector3d position() const { return this->getEstimate().tail<3>(); }
 
   Eigen::Matrix4d pose() const {
     Eigen::Matrix<double, 12, 1> estimate = this->getEstimate();
@@ -91,6 +89,18 @@ public:
                             double *jacobian) const override final {
     local_parameterization_ptr_->ComputeJacobian(x0, jacobian);
   }
+
+  // Minus operator for poses
+  virtual void minus(const double *y, const double *x,
+                     double *y_minus_x) const override final {
+    Eigen::Map<Eigen::Matrix<double, 6, 1>> Y_minux_X(y_minus_x);
+    Eigen::Matrix4d Y = SE3::fromCeresParameters(y);
+    Eigen::Matrix4d X = SE3::fromCeresParameters(x);
+    Y_minux_X = SE3::minus(Y, X, direction_);
+  }
+
+  protected:
+  LieDirection direction_;
 };
 
 } // namespace ceres_nav

@@ -421,11 +421,23 @@ bool FactorGraph::marginalizeStates(std::vector<StateID> states_m) {
       original_states.emplace_back(state_copy);
     }
 
-    // Add a marginal prior
-    ceres_nav::MarginalizationPrior *marg_prior =
-        new ceres_nav::MarginalizationPrior(
-            local_size, global_size, original_states, local_param_ptrs,
-            jacobian_marg, residual_marg, state_ids);
+    // Construct the marginal prior
+    std::vector<ParameterBlockInfo> parameter_blocks_prior;
+    for (int n = 0; n < connected_state_ptrs.size(); n++) {
+      ParameterBlockInfo param_block_info;
+      param_block_info.param_ptr =
+          states_.getStateByEstimatePointer(connected_state_ptrs.at(n));
+      param_block_info.global_size = global_size.at(n);
+      param_block_info.local_size = local_size.at(n);
+      param_block_info.param_type = ParameterType::Unknown;
+      param_block_info.linearization_point = original_states.at(n);
+      param_block_info.state_id = state_ids.at(n);
+      parameter_blocks_prior.emplace_back(param_block_info);
+    }
+
+    ceres_nav::MarginalizationPrior *marg_prior = new MarginalizationPrior(
+        parameter_blocks_prior, jacobian_marg, residual_marg);
+
     ceres::ResidualBlockId marginalization_id =
         problem_.AddResidualBlock(marg_prior, nullptr, connected_state_ptrs);
 

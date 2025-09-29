@@ -79,6 +79,14 @@ public:
     identity.setIdentity();
   }
 
+  // The minus operator - simple subtraction for vector spaces
+  virtual void minus(const double *y, const double *x, double *y_minus_x) const override {
+    Eigen::Map<const Eigen::Matrix<double, Dim, 1>> y_(y);
+    Eigen::Map<const Eigen::Matrix<double, Dim, 1>> x_(x);
+    Eigen::Map<Eigen::Matrix<double, Dim, 1>> y_minus_x_(y_minus_x);
+    y_minus_x_ = y_ - x_;
+  }
+
 protected:
   // Storage for the parameter estimate and covariance
   Eigen::Matrix<double, Dim, 1> estimate_;

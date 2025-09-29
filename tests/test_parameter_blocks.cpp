@@ -84,6 +84,22 @@ TEST_CASE("SO3ParameterBlock") {
   pose_after = SO3::unflatten(x_plus_delta);
   expected_pose = attitude * SO3::expMap(delta_xi);
   REQUIRE(pose_after.isApprox(expected_pose, 1e-6));
+
+  // Test the Jacobian
+  Eigen::Matrix<double, 9, 3, Eigen::RowMajor> jacobian;
+  jacobian.setZero();
+  success = local_param->ComputeJacobian(so3_block.estimatePointer(),
+                                         jacobian.data());
+
+  REQUIRE(success);
+  // std::cout << "Jacobian:\n" << jacobian << std::endl;
+
+  // Eigen::Matrix<double, 3, 9> test_jac = Eigen::Matrix<double, 3, 9>::Zero();
+  // test_jac.block<3, 3>(0, 0) = Eigen::Matrix3d::Random();
+  // Eigen::Matrix<double, 3, 3> result = test_jac * jacobian;
+
+  // std::cout << "Test jacobian:\n" << test_jac << std::endl;
+  // std::cout << "Result:\n" << result << std::endl;
 }
 
 TEST_CASE("Test Pose Parameter Block") {
