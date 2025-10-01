@@ -316,6 +316,11 @@ bool FactorGraph::computeCovariance(const std::string &key, double timestamp) {
 }
 
 bool FactorGraph::marginalizeStates(std::vector<StateID> states_m) {
+
+  // Reset the last marginalization info
+  // last_marginalization_info_.reset();
+  last_marginalization_info_.marginalized_state_ids = states_m;
+
   Timer marg_timer;
   marg_timer.tic();
 
@@ -332,6 +337,8 @@ bool FactorGraph::marginalizeStates(std::vector<StateID> states_m) {
     LOG(ERROR) << "Failed to get state pointers for marginalization.";
     return false;
   }
+
+  // Compute the total degrees of freedom of the state to be marginalized
   int marginal_size = 0;
   for (const double *state_ptr : state_ptrs_m) {
     marginal_size += problem_.ParameterBlockLocalSize(state_ptr);
@@ -427,9 +434,6 @@ bool FactorGraph::marginalizeStates(std::vector<StateID> states_m) {
       ParameterBlockInfo param_block_info;
       param_block_info.param_ptr =
           states_.getStateByEstimatePointer(connected_state_ptrs.at(n));
-      param_block_info.global_size = global_size.at(n);
-      param_block_info.local_size = local_size.at(n);
-      param_block_info.param_type = ParameterType::Unknown;
       param_block_info.linearization_point = original_states.at(n);
       param_block_info.state_id = state_ids.at(n);
       parameter_blocks_prior.emplace_back(param_block_info);
@@ -534,10 +538,9 @@ void FactorGraph::getMarginalizationInfo(
 
 bool FactorGraph::getMarkovBlanketInfo(
     const std::vector<StateID> &states_m,
-    std::vector<double *> &connected_state_ptrs,
+    std::vector<ParameterBlockInfo> &connected_states,
     std::vector<ceres::ResidualBlockId> &factors_m,
-    std::vector<ceres::ResidualBlockId> &factors_r,
-    std::vector<StateID> &connected_state_ids) const {
+    std::vector<ceres::ResidualBlockId> &factors_r) const {
   // Get the state pointers for the states in states_m
   std::vector<double *> state_ptrs_m;
   if (!getStatePointers(states_m, state_ptrs_m)) {
@@ -549,6 +552,70 @@ bool FactorGraph::getMarkovBlanketInfo(
   std::vector<int> global_sizes;
   std::vector<int> local_sizes;
   std::vector<const ceres::LocalParameterization *> local_param_ptrs;
+
+  // Sets to store unique state pointers
+  std::set<double *> base_state_ptrs;
+  std::set<ceres::ResidualBlockId> connected_factor_ids;
+  for (double *const state_ptr : state_ptrs_m) {
+    if (!problem_.HasParameterBlock(state_ptr)) {
+      LOG(ERROR) << "State pointer not found in Ceres problem.";
+      return;
+    }
+
+    if (base_state_ptrs.count(state_ptr) != 0) {
+      LOG(ERROR) << "Duplicate state pointer for marginalized states!";
+      return;
+    }
+
+    base_state_ptrs.emplace(state_ptr);
+    // Get the connected factors
+    std::vector<ceres::ResidualBlockId> factors;
+    problem_.GetResidualBlocksForParameterBlock(state_ptr, &factors);
+    for (ceres::ResidualBlockId factor : factors) {
+      if (connected_factor_ids.count(factor) == 0) {
+        connected_factor_ids.emplace(factor);
+      }
+    }
+  }
+
+  // Now that we have all the connected factors, get all states involed in
+  // those factors
+  std::set<double *> connected_state_ptrs_set;
+  for (const ceres::ResidualBlockId factor : connected_factor_ids) {
+    // Get the states that are connected to this factor
+    std::vector<double *> cur_state_ptrs;
+    problem_.GetParameterBlocksForResidualBlock(factor, &cur_state_ptrs);
+
+    // For each of these states, check if they were already in the
+    // base state pointers or connected state pointers
+    // Only add unique states
+    for (double *state_ptr : cur_state_ptrs) {
+      if (connected_state_ptrs_set.count(state_ptr) == 0 &&
+          base_state_ptrs.count(state_ptr) == 0) {
+        connected_state_ptrs_set.emplace(state_ptr);
+      }
+    }
+
+    // Copy into the connected factors vector
+    connected_factors.emplace_back(factor);
+  }
+
+  // Copy into output vectors
+  for (double *const state_ptr : connected_state_ptrs_set) {
+    connected_state_ptrs.emplace_back(state_ptr);
+    state_sizes.emplace_back(problem_.ParameterBlockSize(state_ptr));
+    local_sizes.emplace_back(problem_.ParameterBlockLocalSize(state_ptr));
+    StateID state_id;
+    if (states_.getStateIDByEstimatePointer(state_ptr, state_id)) {
+      connected_state_ids.emplace_back(state_id);
+    } else {
+      LOG(ERROR) << "Failed to get StateID for state pointer: " << state_ptr;
+    }
+    // Get the local parameterization pointer if it exists
+    const ceres::LocalParameterization *local_param_ptr =
+        problem_.GetParameterization(state_ptr);
+    local_param_ptrs.emplace_back(local_param_ptr);
+  }
   getMarginalizationInfo(state_ptrs_m, connected_state_ptrs, factors_m,
                          global_sizes, local_sizes, connected_state_ids,
                          local_param_ptrs);

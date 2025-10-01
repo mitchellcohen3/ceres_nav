@@ -33,37 +33,52 @@
 
 #pragma once
 
+#include "lib/ParameterBlock.h"
 #include "lib/StateCollection.h"
 #include "lib/StateId.h"
-#include "lib/ParameterBlock.h"
 #include "utils/VectorTypes.h"
 
 #include <ceres/ceres.h>
 
 namespace ceres_nav {
 
-enum class ParameterType {
-  ExtendedPoseSE23,
-  ExtendedPoseDecoupled,
-  Pose,
-  Vector,
-  Unknown
-};
-
-ParameterType
-getLocalParamType(const ceres::LocalParameterization *local_param);
-
 /**
- * @brief Stores all the information about a parameter block. 
+ * @brief Stores all the information about a parameter block.
  * Needed for the marginalization prior to evaluate delta_xi.
  */
 struct ParameterBlockInfo {
   std::shared_ptr<ParameterBlockBase> param_ptr;
-  size_t global_size;
-  size_t local_size;
-  ParameterType param_type;
   Eigen::VectorXd linearization_point;
   StateID state_id;
+
+  ParameterBlockInfo(std::shared_ptr<ParameterBlockBase> param_ptr_,
+                     const Eigen::VectorXd &linearization_point_,
+                     const StateID &state_id_)
+      : param_ptr(param_ptr_), linearization_point(linearization_point_),
+        state_id(state_id_) {}
+
+  ParameterBlockInfo(std::shared_ptr<ParameterBlockBase> param_ptr_,
+                     const StateID &state_id_)
+      : param_ptr(param_ptr_), state_id(state_id_) {
+    // Initialize the linearization point to the current estimate
+    linearization_point = param_ptr->getEstimate();
+  }
+
+  ParameterBlockInfo() = default;
+
+  /**
+   * @brief sets the linearization point of this parameter block
+   */
+  void setLinearizationPoint(const Eigen::VectorXd &linearization_point_) {
+    // Ensure that the size of this vector matches the size of the parameter
+    // block
+    if (linearization_point_.size() != param_ptr->dimension()) {
+      LOG(ERROR) << "Size of the linearization point does not match the size "
+                    "of the parameter block.";
+    }
+
+    linearization_point = linearization_point_;
+  }
 };
 
 class MarginalizationPrior : public ceres::CostFunction {
@@ -71,10 +86,11 @@ public:
   // MarginalizationPrior(
   //     const std::vector<int> &LocalSize, const std::vector<int> &GlobalSize,
   //     const std::vector<Eigen::VectorXd> &LinearizationPoints,
-  //     const std::vector<const ceres::LocalParameterization *> &LocalParamPtrs,
-  //     const Matrix &J, const Vector &R, const std::vector<StateID>
-  //     &StateIDs);
-  MarginalizationPrior(const std::vector<ParameterBlockInfo> &parameter_blocks, const Matrix &J, const Vector &R);
+  //     const std::vector<const ceres::LocalParameterization *>
+  //     &LocalParamPtrs, const Matrix &J, const Vector &R, const
+  //     std::vector<StateID> &StateIDs);
+  MarginalizationPrior(const std::vector<ParameterBlockInfo> &parameter_blocks,
+                       const Matrix &J, const Vector &R);
 
   ~MarginalizationPrior() override = default;
 

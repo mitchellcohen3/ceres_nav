@@ -35,28 +35,6 @@
 
 namespace ceres_nav {
 
-ParameterType
-getLocalParamType(const ceres::LocalParameterization *local_param) {
-  if (local_param == nullptr) {
-    return ParameterType::Vector;
-  }
-
-  if (dynamic_cast<const SE23LocalParameterization *>(local_param) != nullptr) {
-    return ParameterType::ExtendedPoseSE23;
-  }
-
-  if (dynamic_cast<const DecoupledExtendedPoseLocalParameterization *>(
-          local_param) != nullptr) {
-    return ParameterType::ExtendedPoseDecoupled;
-  }
-
-  if (dynamic_cast<const PoseLocalParameterization *>(local_param) != nullptr) {
-    return ParameterType::Pose;
-  }
-
-  return ParameterType::Unknown;
-}
-
 MarginalizationPrior::MarginalizationPrior(
     const std::vector<ParameterBlockInfo> &parameter_blocks, const Matrix &J,
     const Vector &R)

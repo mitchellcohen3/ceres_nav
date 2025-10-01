@@ -112,7 +112,9 @@ public:
    */
   void setVariable(const std::string &name, double timestamp);
 
-  // Marginalize states from the problem
+  /**
+   * @brief Marginalizes out a set of states from the problem
+   */
   bool marginalizeStates(std::vector<StateID> state_ids);
 
   /**
@@ -176,6 +178,17 @@ public:
   ceres::CostFunction *
   getCostFunction(const ceres::ResidualBlockId &residual_id) const;
 
+  // Marginalization information
+  struct LastMarginalizationInfo {
+    public:
+      std::vector<StateID> marginalized_state_ids;
+      std::vector<StateID> connected_state_ids;
+  };
+
+  LastMarginalizationInfo getLastMarginalizationInfo() const {
+    return last_marginalization_info_;
+  }
+
 protected:
   /**
    * @brief Given a vector of state pointers, finds all the factors that are
@@ -229,6 +242,9 @@ protected:
   double marginalization_duration = 0.0;
 
   std::map<std::string, double> marginalization_timing_stats_;
+
+  // Store information about the last marginalization
+  LastMarginalizationInfo last_marginalization_info_;
 };
 
 } // namespace ceres_nav
