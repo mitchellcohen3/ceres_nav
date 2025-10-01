@@ -38,6 +38,28 @@ struct StateID {
     return ID == other.ID && timestamp == other.timestamp;
   }
 
+  // Comparison operator for map/set
+  bool operator<(const StateID &other) const {
+    if (ID != other.ID) {
+      return ID < other.ID;
+    }
+
+    // If IDs are equal, compare timestamps
+    // States without timestamps come before states with timestamps
+    if (!timestamp.has_value() && other.timestamp.has_value()) {
+      return true;
+    }
+    if (timestamp.has_value() && !other.timestamp.has_value()) {
+      return false;
+    }
+    // If both have timestamps, compare the values
+    if (timestamp.has_value() && other.timestamp.has_value()) {
+      return timestamp.value() < other.timestamp.value();
+    }
+    // Both are static (no timestamp) and have same ID
+    return false;
+  }
+
   bool isStatic() const { return !timestamp.has_value(); }
 
   std::string ID;
