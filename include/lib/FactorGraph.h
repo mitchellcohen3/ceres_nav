@@ -3,6 +3,7 @@
 #include "ParameterBlockBase.h"
 #include "StateCollection.h"
 #include "StateId.h"
+#include "factors/MarginalizationPrior.h"
 #include <ceres/ceres.h>
 
 /**
@@ -72,20 +73,17 @@ public:
    * to the states in states_m, states that we'd like to marginalize out.
    *
    * @param states_m The states to get the Markov blanket information for.
-   * @param connected_state_ptrs Output vector of pointers to the connected
-   * states that are involed in factors with states_m.
+   * @param Output vector containing ParameterBlockInfo objects for the states
+   * connected to states_m via factors
    * @param factors_m Output vector of residual block IDs for the factors
-   * connected to the states
+   * connected to the states to be marginalized out.
    * @param factors_r Output vector of residual block IDs for the factors
    * involved with the connected states, that are not in factors_m.
-   * @param connected_state_ids Output vector of StateID objects for the
-   * connected states.
    */
   bool getMarkovBlanketInfo(const std::vector<StateID> &states_m,
-                            std::vector<double *> &connected_state_ptrs,
+                            std::vector<ParameterBlockInfo> &connected_states,
                             std::vector<ceres::ResidualBlockId> &factors_m,
-                            std::vector<ceres::ResidualBlockId> &factors_r,
-                            std::vector<StateID> &connected_state_ids) const;
+                            std::vector<ceres::ResidualBlockId> &factors_r) const;
 
   /**
    * @brief Removes a timestamped state from the problem.
