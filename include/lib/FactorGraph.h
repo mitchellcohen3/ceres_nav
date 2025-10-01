@@ -80,10 +80,11 @@ public:
    * @param factors_r Output vector of residual block IDs for the factors
    * involved with the connected states, that are not in factors_m.
    */
-  bool getMarkovBlanketInfo(const std::vector<StateID> &states_m,
-                            std::vector<ParameterBlockInfo> &connected_states,
-                            std::vector<ceres::ResidualBlockId> &factors_m,
-                            std::vector<ceres::ResidualBlockId> &factors_r) const;
+  bool
+  getMarkovBlanketInfo(const std::vector<StateID> &states_m,
+                       std::vector<ParameterBlockInfo> &connected_states,
+                       std::vector<ceres::ResidualBlockId> &factors_m,
+                       std::vector<ceres::ResidualBlockId> &factors_r) const;
 
   /**
    * @brief Removes a timestamped state from the problem.
@@ -178,9 +179,33 @@ public:
 
   // Marginalization information
   struct LastMarginalizationInfo {
-    public:
-      std::vector<StateID> marginalized_state_ids;
-      std::vector<StateID> connected_state_ids;
+  public:
+    std::vector<StateID> marginalized_state_ids;
+    std::vector<ParameterBlockInfo> connected_states_info;
+    std::vector<ceres::ResidualBlockId> factors_m;
+    std::vector<ceres::ResidualBlockId> factors_r;
+
+    void print() {
+      LOG(INFO) << "Last Marginalization Info:";
+      LOG(INFO) << "Number of marginalized states: "
+                << marginalized_state_ids.size();
+      LOG(INFO) << "Number of connected states: "
+                << connected_states_info.size();
+      LOG(INFO) << "Number of factors marginalized (factors_m): "
+                << factors_m.size();
+      LOG(INFO) << "Number of remaining factors (factors_r): "
+                << factors_r.size();
+
+      // LOG(INFO) << "Marginalized States:";
+      // for (const auto &state_id : marginalized_state_ids) {
+      //   if (state_id.isStatic()) {
+      //     LOG(INFO) << "  - " << state_id.ID << " (static)";
+      //   } else {
+      //     LOG(INFO) << "  - " << state_id.ID
+      //               << " at timestamp: " << state_id.timestamp.value();
+      //   }
+      // }
+    }
   };
 
   LastMarginalizationInfo getLastMarginalizationInfo() const {

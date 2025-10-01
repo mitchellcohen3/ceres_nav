@@ -143,6 +143,8 @@ void marginalizeIMUState(ceres_nav::FactorGraph &graph, double timestamp_marg,
       StateID(keys.bias_state_key, timestamp_marg)};
 
   graph.marginalizeStates(state_ids_marg);
+  // FactorGraph::LastMarginalizationInfo marg_info = graph.getLastMarginalizationInfo();
+  // marg_info.print();
 }
 
 } // namespace factor_graph_utils

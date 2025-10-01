@@ -319,7 +319,6 @@ bool FactorGraph::marginalizeStates(std::vector<StateID> states_m) {
 
   // Reset the last marginalization info
   // last_marginalization_info_.reset();
-  last_marginalization_info_.marginalized_state_ids = states_m;
 
   Timer marg_timer;
   marg_timer.tic();
@@ -442,6 +441,13 @@ bool FactorGraph::marginalizeStates(std::vector<StateID> states_m) {
 
   // Get the marginalization time
   marginalization_duration = marg_timer.toc() * 1e-3;
+
+  // Store the marginalization info for later retrieval
+  last_marginalization_info_.marginalized_state_ids = states_m;
+  last_marginalization_info_.connected_states_info = connected_states;
+  last_marginalization_info_.factors_m = factors_m;
+  last_marginalization_info_.factors_r = factors_r;
+
   return true;
 }
 
