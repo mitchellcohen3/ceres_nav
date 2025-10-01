@@ -100,13 +100,12 @@ public:
 private:
   std::vector<ParameterBlockInfo> parameter_blocks_;
 
-  std::vector<int> LocalSize_;
-  std::vector<int> GlobalSize_;
-  std::vector<const ceres::LocalParameterization *> LocalParamPtrs_;
-  std::vector<StateID> StateIDs;
+  // std::vector<int> LocalSize_;
+  // std::vector<int> GlobalSize_;
+  // std::vector<const ceres::LocalParameterization *> LocalParamPtrs_;
+  // std::vector<StateID> StateIDs;
   int GlobalSizeSum_;
   int LocalSizeSum_;
-  Vector LinearizationPoints_;
   Vector LinearResidual_;
   Matrix LinearJacobian_;
 };

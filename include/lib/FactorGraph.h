@@ -117,6 +117,13 @@ public:
   bool marginalizeStates(std::vector<StateID> state_ids);
 
   /**
+   * @brief A version of marginalizeStates that also allows the user to 
+   * specify linearization points to evaluate the marginalization at for each state ID.
+   * For a given state, if no linearization point is provided, the current estimate is used.
+   */
+  bool marginalizeStates(std::vector<StateID> states_m, const std::map<StateID, Eigen::VectorXd> &linearization_points);
+
+  /**
    * @brief Computes the covariance of a state with a given name at
    * a particular timestamp.
    */
@@ -133,6 +140,12 @@ public:
                               std::vector<StateID> &state_ids,
                               std::vector<const ceres::LocalParameterization *>
                                   &local_param_ptrs) const;
+  /**
+   * @brief For a given ceres residual block, gets the state IDs that it is a function of
+   */
+  void getStateIDsForResidualBlock(
+      const ceres::ResidualBlockId &residual_id,
+      std::vector<StateID> &state_ids) const;
 
   /// Getters
   const ceres::Problem &getProblem() { return problem_; }
@@ -184,6 +197,7 @@ public:
     std::vector<ParameterBlockInfo> connected_states_info;
     std::vector<ceres::ResidualBlockId> factors_m;
     std::vector<ceres::ResidualBlockId> factors_r;
+    MarginalizationPrior *last_marginalization_factor = nullptr;
 
     void print() {
       LOG(INFO) << "Last Marginalization Info:";
