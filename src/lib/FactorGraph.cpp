@@ -385,8 +385,7 @@ bool FactorGraph::marginalizeStates(
         state_info.param_ptr->setEstimate(lin_point);
         // This is used in the marginalization prior factor!
         state_info.linearization_point = lin_point;
-      }
-      else {
+      } else {
         // Set the linearization point to the current estimate
         state_info.linearization_point = state_info.param_ptr->getEstimate();
       }
@@ -667,8 +666,16 @@ bool FactorGraph::getMarkovBlanketInfo(
   return true;
 }
 
-void FactorGraph::getStateIDsForResidualBlock(const ceres::ResidualBlockId &residual,
-                                              std::vector<StateID> &state_ids) const {
+bool FactorGraph::getStateIDsForResidualBlock(
+    const ceres::ResidualBlockId &residual,
+    std::vector<StateID> &state_ids) const {
+  // // Make sure we've actually added this residual block to the problem
+  // if (residual_blocks_to_cost_function_map.find(residual) ==
+  //     residual_blocks_to_cost_function_map.end()) {
+  //   LOG(ERROR) << "Residual block ID not found in the problem: " << residual;
+  //   return false;
+  // }
+
   std::vector<double *> state_ptrs;
   problem_.GetParameterBlocksForResidualBlock(residual, &state_ptrs);
 
@@ -678,6 +685,7 @@ void FactorGraph::getStateIDsForResidualBlock(const ceres::ResidualBlockId &resi
       state_ids.push_back(state_id);
     } else {
       LOG(ERROR) << "Failed to get StateID for state pointer: " << state_ptr;
+      return false;
     }
   }
 }
