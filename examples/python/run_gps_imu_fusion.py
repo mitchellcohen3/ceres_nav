@@ -25,6 +25,9 @@ plt.rc("grid", linestyle="--")
 plt.rc("text", usetex=True)
 colors = sns.color_palette("deep")
 
+# Set the numpy seed to generate
+# repeatable noisy measurements
+np.random.seed(0)
 
 def parse_args():
     """Parse command line arguments."""

@@ -189,10 +189,22 @@ TEST_CASE("Test Static States") {
     REQUIRE(!state_collection.hasStaticState("x"));
 }
 
-// TEST_CASE("Test StateID") {
-//     StateID id1("x", 0.1);
-//     StateID id2("y");
+TEST_CASE("Test StateID") {
+    StateID id1("x", 0.1);
+    StateID id2("y");
 
-//     REQUIRE(!id1.isStatic());
-//     REQUIRE(id2.isStatic());
-// }
+    REQUIRE(!id1.isStatic());
+    REQUIRE(id2.isStatic());
+
+    // Test storing state IDs in a map
+    std::map<StateID, int> state_map;
+    state_map[id1] = 1;
+    state_map[id2] = 2;
+
+    REQUIRE(state_map.size() == 2);
+
+    // Test retrieving values
+    REQUIRE(state_map.at(id1) == 1);
+    REQUIRE(state_map.at(id2) == 2);
+}
+

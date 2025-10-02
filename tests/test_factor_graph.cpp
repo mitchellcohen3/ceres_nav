@@ -11,6 +11,7 @@
 #include "factors/IMUPreintegrationFactor.h"
 #include "factors/RelativeLandmarkFactor.h"
 #include "factors/RelativePoseFactor.h"
+#include "factors/MarginalizationPrior.h"
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -146,21 +147,18 @@ TEST_CASE("Test MarkovBlanketInfo") {
   // Now, say we want to marginalize out X0 and b0. Get the connected state
   // and factor information for this example factor graph
   std::vector<StateID> states_m = {StateID("X", 0.0), StateID("b", 0.0)};
-  std::vector<double *> connected_state_ptrs;
+  std::vector<ParameterBlockInfo> connected_states;
   std::vector<ceres::ResidualBlockId> factors_m;
   std::vector<ceres::ResidualBlockId> factors_r;
-  std::vector<StateID> connected_state_ids;
-
   bool success = factor_graph.getMarkovBlanketInfo(
-      states_m, connected_state_ptrs, factors_m, factors_r,
-      connected_state_ids);
+      states_m, connected_states, factors_m, factors_r);
 
   REQUIRE(success);
 
   // The connected states should be X1, b1, and landmark
-  REQUIRE(connected_state_ptrs.size() == 3);
-  REQUIRE(connected_state_ids.size() == 3);
-  for (auto const &state_id : connected_state_ids) {
+  REQUIRE(connected_states.size() == 3);
+  for (auto const &state : connected_states) {
+    StateID state_id = state.state_id;
     REQUIRE((state_id == StateID("X", 1.0) || state_id == StateID("b", 1.0) ||
              state_id == StateID("landmark")));
   }

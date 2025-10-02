@@ -35,77 +35,34 @@
 
 namespace ceres_nav {
 
-ParameterType
-getLocalParamType(const ceres::LocalParameterization *local_param) {
-  if (local_param == nullptr) {
-    return ParameterType::Vector;
-  }
-
-  if (dynamic_cast<const SE23LocalParameterization *>(local_param) != nullptr) {
-    return ParameterType::ExtendedPoseSE23;
-  }
-
-  if (dynamic_cast<const DecoupledExtendedPoseLocalParameterization *>(
-          local_param) != nullptr) {
-    return ParameterType::ExtendedPoseDecoupled;
-  }
-
-  if (dynamic_cast<const PoseLocalParameterization *>(local_param) != nullptr) {
-    return ParameterType::Pose;
-  }
-
-  return ParameterType::Unknown;
-}
-
 MarginalizationPrior::MarginalizationPrior(
-    const std::vector<int> &LocalSize, const std::vector<int> &GlobalSize,
-    const std::vector<Eigen::VectorXd> &LinearizationPoints,
-    const std::vector<const ceres::LocalParameterization *> &LocalParam_ptrs,
-    const Matrix &J, const Vector &R, const std::vector<StateID> &StateIDs) {
-  /** check if the data is complete */
-  if ((LocalSize.size() == GlobalSize.size()) &&
-      (LocalSize.size() == LinearizationPoints.size()) &&
-      (LocalSize.size() == LocalParam_ptrs.size())) {
-    LocalSize_ = LocalSize;
-    GlobalSize_ = GlobalSize;
-    LocalParamPtrs_ = LocalParam_ptrs;
+    const std::vector<ParameterBlockInfo> &parameter_blocks, const Matrix &J,
+    const Vector &R)
+    : parameter_blocks_(parameter_blocks), LinearJacobian_(J), LinearResidual_(R) {
 
-    /** compute overall system size */
-    int LocalSum = 0, GlobalSum = 0;
-    for (int n = 0; n < static_cast<int>(LocalSize.size()); n++) {
-      LocalSum += LocalSize.at(n);
-      GlobalSum += GlobalSize.at(n);
-    }
-    LocalSizeSum_ = LocalSum;
-    GlobalSizeSum_ = GlobalSum;
+  // Compute overall system size
+  int local_sum = 0;
+  int global_sum = 0;
+  for (const auto &param_block : parameter_blocks_) {
+    local_sum += param_block.param_ptr->minimalDimension();
+    global_sum += param_block.param_ptr->dimension();
+  }
 
-    /** store linear system */
-    LinearJacobian_ = J;
-    LinearResidual_ = R;
+  LocalSizeSum_ = local_sum;
+  GlobalSizeSum_ = global_sum;
 
-    /** store linearization points */
-    LinearizationPoints_.resize(GlobalSizeSum_);
-    int CumSum = 0;
-    for (int n = 0; n < static_cast<int>(LinearizationPoints.size()); n++) {
-      LinearizationPoints_.segment(CumSum, GlobalSize.at(n)) =
-          LinearizationPoints.at(n);
-      CumSum += GlobalSize.at(n);
-    }
+  // Dimension of the residual is the sum of the local sizes
+  this->set_num_residuals(LocalSizeSum_);
 
-    /** parametrize factor */
-    this->set_num_residuals(LocalSizeSum_);
-    for (int BlockSize : GlobalSize) {
-      this->mutable_parameter_block_sizes()->push_back(BlockSize);
-    }
-  } else {
-    LOG(ERROR) << "MarginalizationPrior: Inconsistent sizes of input data!";
+  for (const auto &param_block : parameter_blocks_) {
+    this->mutable_parameter_block_sizes()->push_back(
+        param_block.param_ptr->dimension());
   }
 }
 
 bool MarginalizationPrior::Evaluate(double const *const *Parameters,
                                     double *Residuals,
                                     double **Jacobians) const {
-
   /** use separate jacobian to represent the manifold operations */
   Matrix JacobianManifold;
   bool HasJacobian = false;
@@ -115,183 +72,89 @@ bool MarginalizationPrior::Evaluate(double const *const *Parameters,
     HasJacobian = true;
   }
 
+  // Eigen::Map<Eigen::VectorXd> Error(Residuals, LocalSizeSum_);
   VectorRef<double, Dynamic> Error(Residuals, LocalSizeSum_);
   Vector DeltaState(LocalSizeSum_);
+  Eigen::VectorXd delta_xi(LocalSizeSum_);
+  delta_xi.setZero();
 
-  // Compute block-wise errors
-  int IndexError = 0;
-  int IndexState = 0;
-  for (int nState = 0; nState < static_cast<int>(GlobalSize_.size());
-       nState++) {
+  int index_error = 0;
+  int index_state = 0;
 
-    // Get the dimensions of the sub-block
-    int GlobalSize = GlobalSize_.at(nState);
-    int LocalSize = LocalSize_.at(nState);
+  // Compute block-wise errors for each parameter block
+  for (int nState = 0; nState < parameter_blocks_.size(); nState++){
+    // LOG(INFO) << "Processing state block " << nState;
+    // LOG(INFO) << "Parameter block size: " << parameter_blocks_[nState].param_ptr->dimension();
+    // LOG(INFO) << "Local size: " << parameter_blocks_[nState].param_ptr->minimalDimension();
 
-    /** map relevant variables */
-    const VectorRefConst<double, Dynamic> State(Parameters[nState], GlobalSize);
-    const Vector LinearState =
-        LinearizationPoints_.segment(IndexState, GlobalSize);
+    ParameterBlockInfo param_block = parameter_blocks_[nState];
+    int global_size = param_block.param_ptr->dimension();
+    int local_size = param_block.param_ptr->minimalDimension();
 
-    // Downcast the local parameterization
-    const ceres::LocalParameterization *local_param =
-        LocalParamPtrs_.at(nState);
+    // Map the relevant variables
+    const VectorRefConst<double, Dynamic> State(Parameters[nState],
+                                                global_size);
+    const Vector LinearState = param_block.linearization_point;
 
-    ParameterType param_type = getLocalParamType(local_param);
 
-    switch (param_type) {
-    case ParameterType::Vector:
-      if (LocalSize != GlobalSize) {
-        LOG(ERROR)
-            << "MarginalizationPrior: Local size does not match global size!";
-        DeltaState.segment(IndexError, LocalSize).setZero();
-      } else {
-        DeltaState.segment(IndexError, LocalSize) = State - LinearState;
-      }
+    // Compute the error for this state block
+    Eigen::VectorXd error(local_size);
+    param_block.param_ptr->minus(State.data(), LinearState.data(),
+                                 error.data());
+    DeltaState.segment(index_error, local_size) = error;
 
-      // Set identity Jacobian
-      if (HasJacobian) {
-        JacobianManifold.block(IndexError, IndexState, LocalSize, GlobalSize)
+    // Compute the manifold Jacobian if required
+    if (HasJacobian) {
+      // Get the local parameterization pointer
+      const ceres::LocalParameterization *local_param =
+          param_block.param_ptr->getLocalParameterizationPointer();
+      if (local_param == nullptr) {
+        // No local parameterization - identity Jacobian
+        // Ensure local size and global size are the same
+        if (local_size != global_size) {
+          LOG(ERROR)
+              << "MarginalizationPrior: Local size does not match global size!";
+        }
+        JacobianManifold
+            .block(index_error, index_state, local_size, global_size)
             .setIdentity();
+      } else {
+        Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
+            jac(global_size, local_size);
+        local_param->ComputeJacobian(State.data(), jac.data());
+        JacobianManifold.block(index_error, index_state, local_size,
+                               global_size) = jac.transpose();
       }
-      break;
-    case ParameterType::ExtendedPoseSE23: {
-
-      const ExtendedPoseLocalParameterization *extended_param =
-          dynamic_cast<const ExtendedPoseLocalParameterization *>(local_param);
-      if (extended_param == nullptr) {
-        LOG(ERROR) << "MarginalizationPrior: downcast to "
-                      "ExtendedPoseLocalParameterization failed!";
-        return false;
-      }
-      LieDirection direction = extended_param->direction();
-
-      // Compute x.minus(x_prior) for the extended pose
-      Eigen::Matrix3d C_prior = SO3::unflatten(LinearState.block<9, 1>(0, 0));
-      Eigen::Vector3d v_prior = LinearState.block<3, 1>(9, 0);
-      Eigen::Vector3d r_prior = LinearState.block<3, 1>(12, 0);
-
-      // Eigen::Quaterniond q(State.block<4, 1>(0, 0));
-      // Eigen::Matrix3d C = q.toRotationMatrix();
-      Eigen::Matrix3d C = SO3::unflatten(State.block<9, 1>(0, 0));
-      Eigen::Vector3d v = State.block<3, 1>(9, 0);
-      Eigen::Vector3d r = State.block<3, 1>(12, 0);
-
-      // Construct SE23 matrices and compute difference
-      Eigen::Matrix<double, 5, 5> cur_pose = SE23::fromComponents(C, v, r);
-      Eigen::Matrix<double, 5, 5> pose_prior =
-          SE23::fromComponents(C_prior, v_prior, r_prior);
-      Eigen::Matrix<double, 9, 1> pose_diff =
-          SE23::minus(cur_pose, pose_prior, direction);
-
-      DeltaState.segment(IndexError, LocalSize) = pose_diff;
-      if (HasJacobian) {
-        // Get the manifold Jacobian from Ceres
-        Eigen::Matrix<double, 15, 9> jac = extended_param->getEigenJacobian();
-        JacobianManifold.block(IndexError, IndexState, LocalSize, GlobalSize) =
-            jac.transpose();
-      }
-      break;
-    }
-    case ParameterType::ExtendedPoseDecoupled: {
-      const DecoupledExtendedPoseLocalParameterization *decoupled_param =
-          dynamic_cast<const DecoupledExtendedPoseLocalParameterization *>(
-              local_param);
-      if (decoupled_param == nullptr) {
-        LOG(ERROR) << "MarginalizationPrior: downcast failed.";
-      }
-
-      LieDirection direction = decoupled_param->direction();
-
-      // Compute x.minus(x_prior) for the decoupled extended pose
-      Eigen::Matrix3d C_prior = SO3::unflatten(LinearState.block<9, 1>(0, 0));
-      Eigen::Vector3d v_prior = LinearState.block<3, 1>(9, 0);
-      Eigen::Vector3d r_prior = LinearState.block<3, 1>(12, 0);
-
-      Eigen::Matrix3d C = SO3::unflatten(State.block<9, 1>(0, 0));
-      Eigen::Vector3d v = State.block<3, 1>(9, 0);
-      Eigen::Vector3d r = State.block<3, 1>(12, 0);
-
-      Eigen::Matrix<double, 9, 1> error;
-      error.block<3, 1>(0, 0) = SO3::minus(C, C_prior, direction);
-      error.block<3, 1>(3, 0) = v - v_prior;
-      error.block<3, 1>(6, 0) = r - r_prior;
-      DeltaState.segment(IndexError, LocalSize) = error;
-      if (HasJacobian) {
-        // Get the manifold Jacobian from Ceres
-        Eigen::Matrix<double, 15, 9> jac = decoupled_param->getEigenJacobian();
-        JacobianManifold.block(IndexError, IndexState, LocalSize, GlobalSize) =
-            jac.transpose();
-      }
-      break;
-    }
-    case ParameterType::Pose: {
-      const PoseLocalParameterization *pose_param =
-          dynamic_cast<const PoseLocalParameterization *>(local_param);
-      if (pose_param == nullptr) {
-        LOG(ERROR) << "MarginalizationPrior: downcast to "
-                      "PoseLocalParameterization failed!";
-        return false;
-      }
-
-      LieDirection direction = pose_param->direction();
-      // Compute x.minus(x_prior) for the pose
-      Eigen::Matrix3d C_prior = SO3::unflatten(LinearState.block<9, 1>(0, 0));
-      Eigen::Vector3d r_prior = LinearState.block<3, 1>(9, 0);
-
-      Eigen::Matrix3d C = SO3::unflatten(State.block<9, 1>(0, 0));
-      Eigen::Vector3d r = State.block<3, 1>(9, 0);
-
-      Eigen::Matrix<double, 4, 4> cur_pose = SE3::fromComponents(C, r);
-      Eigen::Matrix<double, 4, 4> pose_prior =
-          SE3::fromComponents(C_prior, r_prior);
-      Eigen::Matrix<double, 6, 1> pose_diff =
-          SE3::minus(cur_pose, pose_prior, direction);
-
-      DeltaState.segment(IndexError, LocalSize) = pose_diff;
-      if (HasJacobian) {
-        // Get the manifold Jacobian from Ceres
-        Eigen::Matrix<double, 12, 6> jac = pose_param->getEigenJacobian();
-        JacobianManifold.block(IndexError, IndexState, LocalSize, GlobalSize) =
-            jac.transpose();
-      }
-      break;
-    }
-    case ParameterType::Unknown:
-      LOG(ERROR) << "MarginalizationPrior: Unknown parameter type!";
-      return false;
-    default:
-      LOG(ERROR) << "MarginalizationPrior: Unknown parameter type!";
-      return false;
     }
 
-    // Move index to next error block
-    IndexError += LocalSize;
-    IndexState += GlobalSize;
+    // Move indices to the next error block
+    index_error += local_size;
+    index_state += global_size;
   }
+
 
   // Compute the error
   Error = LinearJacobian_ * DeltaState + LinearResidual_;
 
-  /** jacobians are composed of linear jacobian and manifold jacobian */
   if (HasJacobian) {
+    int nState = 0;
     int IndexStateJac = 0;
-    for (int nState = 0; nState < static_cast<int>(GlobalSize_.size());
-         nState++) {
-      int GlobalSize = GlobalSize_.at(nState);
-
+    for (auto const &param_block : parameter_blocks_) {
+      int global_size = param_block.param_ptr->dimension();
       if (Jacobians[nState] != nullptr) {
         // Here Ceres expects us to provide the Jacobian with respect to the
         // global parameters.
         // We need to add a column of zeros to the LinearJacobian_, and this
         // is taken care of by Jacobian Manifold.
-        MatrixRef<double, Dynamic, Dynamic> Jacobian(Jacobians[nState],
-                                                     LocalSizeSum_, GlobalSize);
+        Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic,
+                                 Eigen::RowMajor>>
+            Jacobian(Jacobians[nState], LocalSizeSum_, global_size);
         Jacobian = LinearJacobian_ *
-                   JacobianManifold.middleCols(IndexStateJac, GlobalSize);
+                   JacobianManifold.middleCols(IndexStateJac, global_size);
       }
 
-      IndexStateJac += GlobalSize;
+      nState++;
+      IndexStateJac += global_size;
     }
   }
 

@@ -3,6 +3,7 @@
 #include "ParameterBlockBase.h"
 #include "StateCollection.h"
 #include "StateId.h"
+#include "factors/MarginalizationPrior.h"
 #include <ceres/ceres.h>
 
 /**
@@ -72,20 +73,18 @@ public:
    * to the states in states_m, states that we'd like to marginalize out.
    *
    * @param states_m The states to get the Markov blanket information for.
-   * @param connected_state_ptrs Output vector of pointers to the connected
-   * states that are involed in factors with states_m.
+   * @param Output vector containing ParameterBlockInfo objects for the states
+   * connected to states_m via factors
    * @param factors_m Output vector of residual block IDs for the factors
-   * connected to the states
+   * connected to the states to be marginalized out.
    * @param factors_r Output vector of residual block IDs for the factors
    * involved with the connected states, that are not in factors_m.
-   * @param connected_state_ids Output vector of StateID objects for the
-   * connected states.
    */
-  bool getMarkovBlanketInfo(const std::vector<StateID> &states_m,
-                            std::vector<double *> &connected_state_ptrs,
-                            std::vector<ceres::ResidualBlockId> &factors_m,
-                            std::vector<ceres::ResidualBlockId> &factors_r,
-                            std::vector<StateID> &connected_state_ids) const;
+  bool
+  getMarkovBlanketInfo(const std::vector<StateID> &states_m,
+                       std::vector<ParameterBlockInfo> &connected_states,
+                       std::vector<ceres::ResidualBlockId> &factors_m,
+                       std::vector<ceres::ResidualBlockId> &factors_r) const;
 
   /**
    * @brief Removes a timestamped state from the problem.
@@ -112,8 +111,20 @@ public:
    */
   void setVariable(const std::string &name, double timestamp);
 
-  // Marginalize states from the problem
+  /**
+   * @brief Marginalizes out a set of states from the problem
+   */
   bool marginalizeStates(std::vector<StateID> state_ids);
+
+  /**
+   * @brief A version of marginalizeStates that also allows the user to
+   * specify linearization points to evaluate the marginalization at for each
+   * state ID. For a given state, if no linearization point is provided, the
+   * current estimate is used.
+   */
+  bool marginalizeStates(
+      std::vector<StateID> states_m,
+      const std::map<StateID, Eigen::VectorXd> &linearization_points);
 
   /**
    * @brief Computes the covariance of a state with a given name at
@@ -132,6 +143,12 @@ public:
                               std::vector<StateID> &state_ids,
                               std::vector<const ceres::LocalParameterization *>
                                   &local_param_ptrs) const;
+  /**
+   * @brief For a given ceres residual block, gets the state IDs that it is a
+   * function of
+   */
+  bool getStateIDsForResidualBlock(const ceres::ResidualBlockId &residual_id,
+                                   std::vector<StateID> &state_ids) const;
 
   /// Getters
   const ceres::Problem &getProblem() { return problem_; }
@@ -175,6 +192,42 @@ public:
    */
   ceres::CostFunction *
   getCostFunction(const ceres::ResidualBlockId &residual_id) const;
+
+  // Marginalization information
+  struct LastMarginalizationInfo {
+  public:
+    std::vector<StateID> marginalized_state_ids;
+    std::vector<ParameterBlockInfo> connected_states_info;
+    std::vector<ceres::ResidualBlockId> factors_m;
+    std::vector<ceres::ResidualBlockId> factors_r;
+    MarginalizationPrior *last_marginalization_factor = nullptr;
+
+    void print() {
+      LOG(INFO) << "Last Marginalization Info:";
+      LOG(INFO) << "Number of marginalized states: "
+                << marginalized_state_ids.size();
+      LOG(INFO) << "Number of connected states: "
+                << connected_states_info.size();
+      LOG(INFO) << "Number of factors marginalized (factors_m): "
+                << factors_m.size();
+      LOG(INFO) << "Number of remaining factors (factors_r): "
+                << factors_r.size();
+
+      // LOG(INFO) << "Marginalized States:";
+      // for (const auto &state_id : marginalized_state_ids) {
+      //   if (state_id.isStatic()) {
+      //     LOG(INFO) << "  - " << state_id.ID << " (static)";
+      //   } else {
+      //     LOG(INFO) << "  - " << state_id.ID
+      //               << " at timestamp: " << state_id.timestamp.value();
+      //   }
+      // }
+    }
+  };
+
+  LastMarginalizationInfo getLastMarginalizationInfo() const {
+    return last_marginalization_info_;
+  }
 
 protected:
   /**
@@ -229,6 +282,9 @@ protected:
   double marginalization_duration = 0.0;
 
   std::map<std::string, double> marginalization_timing_stats_;
+
+  // Store information about the last marginalization
+  LastMarginalizationInfo last_marginalization_info_;
 };
 
 } // namespace ceres_nav

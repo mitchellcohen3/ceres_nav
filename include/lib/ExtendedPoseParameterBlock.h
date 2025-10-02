@@ -32,7 +32,7 @@ public:
       ExtendedPoseRepresentation param_type = ExtendedPoseRepresentation::SE23,
       const std::string &name = "extended_pose_parameter_block",
       LieDirection direction = LieDirection::left)
-      : ParameterBlock<15, 9>(name), direction_(direction) {
+      : ParameterBlock<15, 9>(name), direction_(direction), pose_representation_(param_type) {
     switch (param_type) {
     case ExtendedPoseRepresentation::SE23:
       local_parameterization_ptr_ = new SE23LocalParameterization(direction);
@@ -115,10 +115,47 @@ public:
     local_parameterization_ptr_->ComputeJacobian(x0, jacobian);
   }
 
+  // The minus operator for extended poses.
+  // Computes Y \ominus X, where the definition of \ominus depends on the Lie
+  // direction and pose representation.
+  virtual void minus(const double *y, const double *x,
+                     double *y_minux_x) const override {
+    Eigen::Map<Eigen::Matrix<double, 9, 1>> Y_minus_X(y_minux_x);
+
+    if (pose_representation_ == ExtendedPoseRepresentation::SE23) {
+      Eigen::Matrix<double, 5, 5> Y = SE23::fromCeresParameters(y);
+      Eigen::Matrix<double, 5, 5> X = SE23::fromCeresParameters(x);
+      Y_minus_X = SE23::minus(Y, X, direction());
+    } else if (pose_representation_ == ExtendedPoseRepresentation::Decoupled) {
+      Eigen::Map<const Eigen::Matrix<double, 15, 1>> Y(y);
+      Eigen::Map<const Eigen::Matrix<double, 15, 1>> X(x);
+
+      Eigen::Matrix3d C_y = SO3::unflatten(Y.head<9>());
+      Eigen::Vector3d v_y = Y.segment<3>(9);
+      Eigen::Vector3d r_y = Y.tail<3>();
+
+      Eigen::Matrix3d C_x = SO3::unflatten(X.head<9>());
+      Eigen::Vector3d v_x = X.segment<3>(9);
+      Eigen::Vector3d r_x = X.tail<3>();
+
+      Y_minus_X.head<3>() = SO3::minus(C_y, C_x, direction());
+      Y_minus_X.segment<3>(3) = v_y - v_x;
+      Y_minus_X.tail<3>() = r_y - r_x;
+    }
+    else {
+      throw std::invalid_argument("Unsupported state representation type");
+    }
+  }
+
+  /// Getters for the state direction and representation
   LieDirection direction() const { return direction_; }
+  ExtendedPoseRepresentation representation() const {
+    return pose_representation_;
+  }
 
 protected:
   LieDirection direction_;
+  ExtendedPoseRepresentation pose_representation_;
 };
 
 } // namespace ceres_nav
