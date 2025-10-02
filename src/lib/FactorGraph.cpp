@@ -381,12 +381,10 @@ bool FactorGraph::marginalizeStates(
           return false;
         }
         // Temporarily set the state to the linearization point!
-        LOG(INFO) << "Setting linearization point for state " << state_id.ID;
+        // LOG(INFO) << "Setting linearization point for state " << state_id.ID;
         state_info.param_ptr->setEstimate(lin_point);
-        // This is used in the marginalization prior factor!
         state_info.linearization_point = lin_point;
       } else {
-        // Set the linearization point to the current estimate
         state_info.linearization_point = state_info.param_ptr->getEstimate();
       }
     }
@@ -460,8 +458,6 @@ bool FactorGraph::marginalizeStates(
     for (auto &state_info : connected_states) {
       double *state_ptr = state_info.param_ptr->estimatePointer();
       if (saved_values.find(state_ptr) != saved_values.end()) {
-        // LOG(INFO) << "Restoring state after marginalization: "
-        //           << state_info.state_id.ID;
         state_info.param_ptr->setEstimate(saved_values[state_ptr]);
       } else {
         // LOG(ERROR) << "Failed to find saved value for state during "
