@@ -62,6 +62,17 @@ struct StateID {
 
   bool isStatic() const { return !timestamp.has_value(); }
 
+  /**
+   * @brief converts a StateID to a string for printing
+   */
+  std::string toString() const {
+    if (timestamp.has_value()) {
+      return ID + " at time " + std::to_string(timestamp.value());
+    } else {
+      return ID;
+    }
+  }
+
   std::string ID;
   std::optional<double> timestamp;
 };

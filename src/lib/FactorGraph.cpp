@@ -688,6 +688,8 @@ bool FactorGraph::getStateIDsForResidualBlock(
       return false;
     }
   }
+
+  return true;
 }
 
 std::vector<ceres::CostFunction *> FactorGraph::getCostFunctionPtrs() {
