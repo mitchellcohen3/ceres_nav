@@ -14,6 +14,9 @@ target_link_libraries(test_state_collection PRIVATE ${PROJECT_NAME} Catch2::Catc
 add_executable(test_vector_math test_vector_math.cpp)
 target_link_libraries(test_vector_math PRIVATE ${PROJECT_NAME} Catch2::Catch2WithMain)
 
+add_executable(test_fej_factor test_fej_factor.cpp)
+target_link_libraries(test_fej_factor PRIVATE ${PROJECT_NAME} Catch2::Catch2WithMain)
+
 include(CTest)
 include(Catch)
 catch_discover_tests(test_factor_graph)
@@ -21,3 +24,4 @@ catch_discover_tests(test_jacobians)
 catch_discover_tests(test_parameter_blocks)
 catch_discover_tests(test_state_collection)
 catch_discover_tests(test_vector_math)
+catch_discover_tests(test_fej_factor)
