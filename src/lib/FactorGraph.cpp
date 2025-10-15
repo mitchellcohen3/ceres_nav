@@ -20,21 +20,8 @@ FactorGraph::FactorGraph(ceres::Solver::Options solver_options)
 
 void FactorGraph::addState(const std::string &name, double timestamp,
                            std::shared_ptr<ParameterBlockBase> state) {
-  states_.addState(name, timestamp, state);
-
-  // Get the mean pointer
-  double *estimate_ptr = state->estimatePointer();
-  int size = state->dimension();
-
-  ceres::LocalParameterization *local_parameterization_ptr =
-      state->getLocalParameterizationPointer();
-
-  if (local_parameterization_ptr != nullptr) {
-    problem_.AddParameterBlock(estimate_ptr, state->dimension(),
-                               local_parameterization_ptr);
-  } else {
-    problem_.AddParameterBlock(estimate_ptr, size);
-  }
+  StateID state_id(name, timestamp);
+  this->addState(state_id, state);
 }
 
 void FactorGraph::addState(const StateID &state_id,
@@ -60,32 +47,17 @@ void FactorGraph::addState(const StateID &state_id,
   }
 }
 
-// Add a factor to the problem
 bool FactorGraph::addFactor(const std::vector<StateID> &state_ids,
                             ceres::CostFunction *cost_function, double stamp,
                             ceres::LossFunction *loss_function) {
   // Build vector of state pointers
   std::vector<double *> state_ptrs;
   for (auto &state_id : state_ids) {
-    std::shared_ptr<ParameterBlockBase> state;
-    // For static states, we don't have a timestamp
-    if (state_id.isStatic()) {
-      state = states_.getStaticState(state_id.ID);
-      if (!state) {
-        LOG(ERROR)
-            << "Trying to add a factor with static state that does not exist: "
-            << state_id.ID;
-        return false;
-      }
-    } else {
-      // For timestamped states
-      state = states_.getState(state_id.ID, state_id.timestamp.value());
-      if (!state) {
-        LOG(ERROR) << "Trying to add a factor with state that does not exist: "
-                   << state_id.ID
-                   << " at timestamp: " << state_id.timestamp.value();
-        return false;
-      }
+    std::shared_ptr<ParameterBlockBase> state = states_.getState(state_id);
+    if (!state) {
+      LOG(ERROR) << "State not found in collection: "
+                 << state_id.toString();
+      return false;
     }
 
     state_ptrs.push_back(state->estimatePointer());
@@ -125,28 +97,17 @@ bool FactorGraph::getStatePointers(const std::vector<StateID> &state_ids,
                                    std::vector<double *> &state_ptrs) const {
   // Get the pointers to the states
   for (auto &state_id : state_ids) {
-    std::shared_ptr<ParameterBlockBase> state;
-
-    if (state_id.isStatic()) {
-      state = states_.getStaticState(state_id.ID);
-      if (!state) {
-        LOG(ERROR) << "State not found in collection: " << state_id.ID;
-        return false;
-      }
-    } else {
-      state = states_.getState(state_id.ID, state_id.timestamp.value());
-      if (!state) {
-        LOG(ERROR) << "State not found in collection: " << state_id.ID
-                   << " at timestamp: " << state_id.timestamp.value();
-        return false;
-      }
+    std::shared_ptr<ParameterBlockBase> state = states_.getState(state_id);
+    if (!state)  {
+      LOG(ERROR) << "State not found in collection: " << state_id.toString();
+      return false;
     }
 
     double *state_ptr = state->estimatePointer();
 
     if (!problem_.HasParameterBlock(state_ptr)) {
-      LOG(ERROR) << "State not found in Ceres problem: " << state_id.ID
-                 << " at timestamp: " << state_id.timestamp.value();
+      LOG(ERROR) << "State pointer not found in Ceres problem for state: "
+                 << state_id.toString();
       return false;
     }
     state_ptrs.push_back(state_ptr);
@@ -239,19 +200,9 @@ void FactorGraph::removeState(const std::string &name, double timestamp) {
 }
 
 void FactorGraph::removeState(const StateID &state_id) {
-  std::shared_ptr<ParameterBlockBase> state;
-
-  if (state_id.isStatic()) {
-    state = states_.getStaticState(state_id.ID);
-  } else {
-    state = states_.getState(state_id.ID, state_id.timestamp.value());
-  }
-
+  std::shared_ptr<ParameterBlockBase> state = states_.getState(state_id);
   if (!state) {
-    LOG(ERROR) << "State not found in collection: " << state_id.ID;
-    if (!state_id.isStatic()) {
-      LOG(ERROR) << " at timestamp: " << state_id.timestamp.value();
-    }
+    LOG(ERROR) << "State not found in collection: " << state_id.toString();
     return;
   }
 
@@ -485,79 +436,6 @@ bool FactorGraph::marginalizeStates(
   last_marginalization_info_.factors_r = factors_r;
 
   return true;
-}
-
-void FactorGraph::getMarginalizationInfo(
-    const std::vector<double *> state_ptrs_m,
-    std::vector<double *> &connected_state_ptrs,
-    std::vector<ceres::ResidualBlockId> &connected_factors,
-    std::vector<int> &state_sizes, std::vector<int> &local_sizes,
-    std::vector<StateID> &connected_state_ids,
-    std::vector<const ceres::LocalParameterization *> &local_param_ptrs) const {
-
-  // Sets to store unique state pointers
-  std::set<double *> base_state_ptrs;
-  std::set<ceres::ResidualBlockId> connected_factor_ids;
-  for (double *const state_ptr : state_ptrs_m) {
-    if (!problem_.HasParameterBlock(state_ptr)) {
-      LOG(ERROR) << "State pointer not found in Ceres problem.";
-      return;
-    }
-
-    if (base_state_ptrs.count(state_ptr) != 0) {
-      LOG(ERROR) << "Duplicate state pointer for marginalized states!";
-      return;
-    }
-
-    base_state_ptrs.emplace(state_ptr);
-    // Get the connected factors
-    std::vector<ceres::ResidualBlockId> factors;
-    problem_.GetResidualBlocksForParameterBlock(state_ptr, &factors);
-    for (ceres::ResidualBlockId factor : factors) {
-      if (connected_factor_ids.count(factor) == 0) {
-        connected_factor_ids.emplace(factor);
-      }
-    }
-  }
-
-  // Now that we have all the connected factors, get all states involed in
-  // those factors
-  std::set<double *> connected_state_ptrs_set;
-  for (const ceres::ResidualBlockId factor : connected_factor_ids) {
-    // Get the states that are connected to this factor
-    std::vector<double *> cur_state_ptrs;
-    problem_.GetParameterBlocksForResidualBlock(factor, &cur_state_ptrs);
-
-    // For each of these states, check if they were already in the
-    // base state pointers or connected state pointers
-    // Only add unique states
-    for (double *state_ptr : cur_state_ptrs) {
-      if (connected_state_ptrs_set.count(state_ptr) == 0 &&
-          base_state_ptrs.count(state_ptr) == 0) {
-        connected_state_ptrs_set.emplace(state_ptr);
-      }
-    }
-
-    // Copy into the connected factors vector
-    connected_factors.emplace_back(factor);
-  }
-
-  // Copy into output vectors
-  for (double *const state_ptr : connected_state_ptrs_set) {
-    connected_state_ptrs.emplace_back(state_ptr);
-    state_sizes.emplace_back(problem_.ParameterBlockSize(state_ptr));
-    local_sizes.emplace_back(problem_.ParameterBlockLocalSize(state_ptr));
-    StateID state_id;
-    if (states_.getStateIDByEstimatePointer(state_ptr, state_id)) {
-      connected_state_ids.emplace_back(state_id);
-    } else {
-      LOG(ERROR) << "Failed to get StateID for state pointer: " << state_ptr;
-    }
-    // Get the local parameterization pointer if it exists
-    const ceres::LocalParameterization *local_param_ptr =
-        problem_.GetParameterization(state_ptr);
-    local_param_ptrs.emplace_back(local_param_ptr);
-  }
 }
 
 bool FactorGraph::getMarkovBlanketInfo(

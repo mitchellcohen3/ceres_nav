@@ -65,9 +65,15 @@ public:
    */
   void solve(ceres::Solver::Options Options);
 
-  /** Get information about the internal Ceres problem. */
+  /**
+   * @brief Gets the pointers to the states corresponding to the provided state
+   * IDs.
+   * @param StateIDs The state IDs to get the pointers for.
+   * @param state_ptrs Output vector of state pointers.
+   */
   bool getStatePointers(const std::vector<StateID> &StateIDs,
                         std::vector<double *> &state_ptrs) const;
+
   /**
    * @brief Gets the information about the connected states and factors
    * to the states in states_m, states that we'd like to marginalize out.
@@ -132,17 +138,6 @@ public:
    */
   bool computeCovariance(const std::string &name, double timestamp);
 
-  /**
-   * @brief Gets the marginalization information for a set of states.
-   */
-  void getMarginalizationInfo(const std::vector<double *> state_ptrs_m,
-                              std::vector<double *> &connected_state_ptrs,
-                              std::vector<ceres::ResidualBlockId> &factors_m,
-                              std::vector<int> &state_sizes,
-                              std::vector<int> &local_sizes,
-                              std::vector<StateID> &state_ids,
-                              std::vector<const ceres::LocalParameterization *>
-                                  &local_param_ptrs) const;
   /**
    * @brief For a given ceres residual block, gets the state IDs that it is a
    * function of

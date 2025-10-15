@@ -92,6 +92,16 @@ TEST_CASE("SO3ParameterBlock") {
                                          jacobian.data());
 
   REQUIRE(success);
+
+  // Test the minus operation
+  Eigen::Matrix<double, 3, 1> y_minus_x;
+  Eigen::Matrix3d Y = SO3::expMap(Eigen::Vector3d(0.2, 0.1, -0.1));
+  Eigen::Matrix3d X = SO3::expMap(Eigen::Vector3d(0.1, 0.2, 0.3));
+  so3_block.minus(SO3::flatten(Y).data(), SO3::flatten(X).data(), y_minus_x.data());
+
+  // Expected minus
+  Eigen::Vector3d expected_minus = SO3::minus(Y, X, LieDirection::left);
+  REQUIRE(y_minus_x.isApprox(expected_minus, 1e-6));
   // std::cout << "Jacobian:\n" << jacobian << std::endl;
 
   // Eigen::Matrix<double, 3, 9> test_jac = Eigen::Matrix<double, 3, 9>::Zero();
