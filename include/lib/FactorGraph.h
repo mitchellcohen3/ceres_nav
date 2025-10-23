@@ -16,6 +16,12 @@
 
 namespace ceres_nav {
 
+struct FactorInfo {
+  ceres::ResidualBlockId residual_block_id;
+  std::vector<StateID> connected_states;
+  double timestamp;
+};
+
 class FactorGraph {
 public:
   using StatePtr = std::shared_ptr<ParameterBlockBase>;
@@ -31,14 +37,11 @@ public:
   FactorGraph(ceres::Solver::Options solver_options);
 
   /**
-   * @brief Adds a state to the problem with a particular name and
-   * timestamp
-   */
-  void addState(const std::string &name, double timestamp,
-                std::shared_ptr<ParameterBlockBase> state);
-
-  /**
-   * @brief Adds a state to the problem with a particular StateID
+   * @brief Adds a state to the problem with a particular StateID.
+   *
+   * @param state_id The StateID for the state to add
+   * @param state A shared pointer to the ParameterBlockBase object containing
+   * the estimate of the state.
    */
   void addState(const StateID &state_id,
                 std::shared_ptr<ParameterBlockBase> state);
@@ -56,7 +59,22 @@ public:
                  ceres::LossFunction *loss_function = nullptr);
 
   /**
-   * @brief Solves the optimization problem using the current solver options.
+   * @brief Adds a factor to the problem, and additionally returns
+   * information about the added factor via the FactorInfo struct.
+   */
+  bool addFactor(const std::vector<StateID> &state_ids,
+                 ceres::CostFunction *cost_function, double stamp,
+                 FactorInfo &info,
+                 ceres::LossFunction *loss_function = nullptr);
+
+  /**
+   * @brief Removes a factor from the problem given its FactorInfo.
+   */
+  bool removeFactor(const FactorInfo &info);
+
+  /**
+   * @brief Solves the optimization problem using the current solver
+   * options.
    */
   void solve();
 
@@ -65,7 +83,9 @@ public:
    */
   void solve(ceres::Solver::Options Options);
 
-  /** Get information about the internal Ceres problem. */
+  /**
+   * @brief Gets the
+   */
   bool getStatePointers(const std::vector<StateID> &StateIDs,
                         std::vector<double *> &state_ptrs) const;
   /**
@@ -86,30 +106,10 @@ public:
                        std::vector<ceres::ResidualBlockId> &factors_m,
                        std::vector<ceres::ResidualBlockId> &factors_r) const;
 
-  /**
-   * @brief Removes a timestamped state from the problem.
-   */
-  void removeState(const std::string &name, double timestamp);
-
-  /**
-   * @brief Removes a state from the problem given a StateID.
-   */
-  void removeState(const StateID &state_id);
-
-  /**
-   * @brief Sets a state as constant in the optimization problem.
-   */
-  void setConstant(const std::string &name, double timestamp);
-
-  /**
-   * @brief Checks if a state is constant in the optimization problem.
-   */
-  bool isConstant(const std::string &name, double timestamp);
-
-  /**
-   * @brief Sets a state as variable in the optimization problem.
-   */
-  void setVariable(const std::string &name, double timestamp);
+  // Control whether a state is constant or variable
+  void setConstant(const StateID &state_id);
+  void setVariable(const StateID &state_id);
+  bool isConstant(const StateID &state_id) const;
 
   /**
    * @brief Marginalizes out a set of states from the problem
@@ -127,10 +127,18 @@ public:
       const std::map<StateID, Eigen::VectorXd> &linearization_points);
 
   /**
+   * @brief Directly removes a state from the problem given a StateID.
+   *
+   * WARNING: this does not properly marginalize out the state, and should be
+   * used with caution!
+   */
+  void removeState(const StateID &state_id);
+
+  /**
    * @brief Computes the covariance of a state with a given name at
    * a particular timestamp.
    */
-  bool computeCovariance(const std::string &name, double timestamp);
+  bool computeCovariance(const StateID &state_id);
 
   /**
    * @brief Gets the marginalization information for a set of states.

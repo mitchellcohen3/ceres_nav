@@ -1,6 +1,7 @@
 #include "lib/Covariance.h"
-
 #include "lib/StateCollection.h"
+#include "lib/StateId.h"
+
 #include <ceres/ceres.h>
 #include <glog/logging.h>
 #include <thread>
@@ -8,11 +9,11 @@
 
 namespace ceres_nav {
 bool calculateCovariance(ceres::Problem &graph, StateCollection &states,
-                         const std::string &key, double timestamp) {
+                         const StateID &state_id) {
 
   // Check if the state exists in the collection
-  if (!states.hasState(key, timestamp)) {
-    LOG(ERROR) << "State with key: " << key << " and timestamp: " << timestamp
+  if (!states.hasState(state_id)) {
+    LOG(ERROR) << "State with ID: " << state_id.toString()
                << " does not exist in the state collection.";
     return false;
   }
@@ -26,57 +27,56 @@ bool calculateCovariance(ceres::Problem &graph, StateCollection &states,
   ceres::Covariance covariance(cov_options);
 
   std::vector<const double *> parameter_block_ptrs;
-  parameter_block_ptrs.push_back(
-      states.getState(key, timestamp)->estimatePointer());
+  parameter_block_ptrs.push_back(states.getState(state_id)->estimatePointer());
 
   // Try with sparse QR first
   if (covariance.Compute(parameter_block_ptrs, &graph)) {
-    if (states.getState(key, timestamp)->getLocalParameterizationPointer() ==
+    if (states.getState(state_id)->getLocalParameterizationPointer() ==
         nullptr) {
       covariance.GetCovarianceBlock(
-          states.getState(key, timestamp)->estimatePointer(),
-          states.getState(key, timestamp)->estimatePointer(),
-          states.getState(key, timestamp)->getCovariancePointer());
+          states.getState(state_id)->estimatePointer(),
+          states.getState(state_id)->estimatePointer(),
+          states.getState(state_id)->getCovariancePointer());
     } else {
       covariance.GetCovarianceBlockInTangentSpace(
-          states.getState(key, timestamp)->estimatePointer(),
-          states.getState(key, timestamp)->estimatePointer(),
-          states.getState(key, timestamp)->getCovariancePointer());
+          states.getState(state_id)->estimatePointer(),
+          states.getState(state_id)->estimatePointer(),
+          states.getState(state_id)->getCovariancePointer());
     }
     return true;
   } else {
-    LOG(ERROR) << "Sparse QR covariance computation failed for state: " << key
-               << " at timestamp: " << timestamp;
+    LOG(ERROR) << "Sparse QR covariance computation failed for state: "
+               << state_id.toString();
     if (!graph.NumParameterBlocks() > 100) {
-      LOG(ERROR) << "Covariance computation of " << key
+      LOG(ERROR) << "Covariance computation of " << state_id.toString()
                  << " failed. No covariance computed!";
       return false;
     }
 
-    LOG(ERROR) << "Jacobian related to state " << key << " at timestamp "
-               << timestamp << " is not full rank. Computing with SVD...";
+    LOG(ERROR) << "Jacobian related to state " << state_id.toString()
+               << " is not full rank. Computing with SVD...";
     cov_options.algorithm_type = ceres::CovarianceAlgorithmType::DENSE_SVD;
     cov_options.null_space_rank = -1;
     ceres::Covariance covariance_svd(cov_options);
 
     // Try to compute again
     if (covariance_svd.Compute(parameter_block_ptrs, &graph)) {
-      if (states.getState(key, timestamp)->getLocalParameterizationPointer() ==
+      if (states.getState(state_id)->getLocalParameterizationPointer() ==
           nullptr) {
         covariance_svd.GetCovarianceBlock(
-            states.getState(key, timestamp)->estimatePointer(),
-            states.getState(key, timestamp)->estimatePointer(),
-            states.getState(key, timestamp)->getCovariancePointer());
+            states.getState(state_id)->estimatePointer(),
+            states.getState(state_id)->estimatePointer(),
+            states.getState(state_id)->getCovariancePointer());
       } else {
         covariance_svd.GetCovarianceBlockInTangentSpace(
-            states.getState(key, timestamp)->estimatePointer(),
-            states.getState(key, timestamp)->estimatePointer(),
-            states.getState(key, timestamp)->getCovariancePointer());
+            states.getState(state_id)->estimatePointer(),
+            states.getState(state_id)->estimatePointer(),
+            states.getState(state_id)->getCovariancePointer());
       }
       return true;
     } else {
-      LOG(ERROR) << "Failed to compute covariance for state: " << key
-                 << " at timestamp: " << timestamp;
+      LOG(ERROR) << "Failed to compute covariance for state: "
+                 << state_id.toString();
       return false;
     }
   }

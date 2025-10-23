@@ -4,77 +4,75 @@
 #include <string>
 
 namespace ceres_nav {
-  
-// struct StateID {
-//   StateID() {
-//     ID = "";
-//     timestamp = 0.0;
-//   }
 
-//   StateID(const std::string &state_id, const double timestamp_)
-//       : ID(state_id), timestamp(timestamp_) {}
+/**
+ * @brief Unique identifier for a state.
+ *
+ * Stores a string key, and an optional timestamp for time-varying states.
+ * The timestamp is automatically rounded to a specified precision to avoid
+ * floating point issues for retrieving states with a given timestamp.
+ */
+class StateID {
+public:
+  // Round to nanosecond precision by default
+  inline static double DEFAULT_PRECISION = 1e-9;
 
-//   /** is required to compare keys */
-//   bool operator==(const StateID &other) const {
-//     return ID == other.ID && timestamp == other.timestamp;
-//   }
+  StateID() = default;
 
-//   std::string ID;
-//   double timestamp;
-// };
+  // Construct for time-varying states (poses, velocities, biases, etc.)
+  StateID(const std::string &key, double timestamp,
+          double precision = DEFAULT_PRECISION)
+      : key_(key), timestamp_(roundToPrecision(timestamp, precision)) {}
 
-struct StateID {
-  StateID() { ID = ""; }
+  // Constructor for time-invariant states (landmarks, calibration,
+  // etc.)
+  StateID(const std::string &key) : key_(key) {}
 
-  // Constructor for static states with no timestamp
-  StateID(const std::string &state_id) : ID(state_id) {}
-
-  // Constructor for timestamped states
-  StateID(const std::string &state_id, double timestamp_)
-      : ID(state_id), timestamp(timestamp_) {}
-
-  // Compare two StateID objects
-  bool operator==(const StateID &other) const {
-    return ID == other.ID && timestamp == other.timestamp;
+  static void setDefaultPrecision(double precision) {
+    DEFAULT_PRECISION = precision;
   }
 
-  // Comparison operator for map/set
-  bool operator<(const StateID &other) const {
-    if (ID != other.ID) {
-      return ID < other.ID;
-    }
+  // Accessors
+  const std::string key() const { return key_; }
+  std::optional<double> timestamp() const { return timestamp_; }
+  bool hasTimestamp() const { return timestamp_.has_value(); }
 
-    // If IDs are equal, compare timestamps
-    // States without timestamps come before states with timestamps
-    if (!timestamp.has_value() && other.timestamp.has_value()) {
-      return true;
+  // Comparison operators for use in maps and sets
+  bool operator<(const StateID &other) const {
+    if (key_ != other.key_) {
+      return key_ < other.key_;
     }
-    if (timestamp.has_value() && !other.timestamp.has_value()) {
-      return false;
+    if (timestamp_.has_value() != other.timestamp_.has_value()) {
+      return !timestamp_.has_value();
     }
-    // If both have timestamps, compare the values
-    if (timestamp.has_value() && other.timestamp.has_value()) {
-      return timestamp.value() < other.timestamp.value();
+    if (timestamp_.has_value()) {
+      return timestamp_.value() < other.timestamp_.value();
     }
-    // Both are static (no timestamp) and have same ID
     return false;
   }
 
-  bool isStatic() const { return !timestamp.has_value(); }
+  bool operator==(const StateID &other) const {
+    return key_ == other.key_ && timestamp_ == other.timestamp_;
+  }
 
-  /**
-   * @brief converts a StateID to a string for printing
-   */
+  bool operator!=(const StateID &other) const { return !(*this == other); }
+
+  // String representation for debuggin
   std::string toString() const {
-    if (timestamp.has_value()) {
-      return ID + " at time " + std::to_string(timestamp.value());
+    if (timestamp_.has_value()) {
+      return key_ + " at time " + std::to_string(timestamp_.value());
     } else {
-      return ID;
+      return key_;
     }
   }
 
-  std::string ID;
-  std::optional<double> timestamp;
-};
+private:
+  // Round timestamp to a specified precision
+  static double roundToPrecision(double value, double precision) {
+    return std::round(value / precision) * precision;
+  }
 
+  std::string key_;
+  std::optional<double> timestamp_;
+};
 } // namespace ceres_nav

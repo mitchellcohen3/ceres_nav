@@ -126,7 +126,7 @@ void runSlidingWindowEstimator(
                                      R_gps, state_rep, keys);
     // If we've reached the window size, optimize the graph and marginalize the
     // oldest state
-    if (graph.getStates().getNumStatesForType(keys.nav_state_key) >=
+    if (graph.getStates().getNumberOfStatesForType(keys.nav_state_key) >=
         window_size) {
       graph.solve(options);
       ceres::Solver::Summary summary = graph.getSolverSummary();

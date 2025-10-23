@@ -1,4 +1,3 @@
-# find_package(Catch2 REQUIRED)
 add_executable(test_factor_graph test_factor_graph.cpp)
 target_link_libraries(test_factor_graph PRIVATE ${PROJECT_NAME} Catch2::Catch2WithMain)
 

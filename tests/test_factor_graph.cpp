@@ -9,9 +9,9 @@
 
 #include "factors/AbsolutePositionFactor.h"
 #include "factors/IMUPreintegrationFactor.h"
+#include "factors/MarginalizationPrior.h"
 #include "factors/RelativeLandmarkFactor.h"
 #include "factors/RelativePoseFactor.h"
-#include "factors/MarginalizationPrior.h"
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -21,45 +21,47 @@ TEST_CASE("Test Add/Remove states from FactorGraph") {
   FactorGraph factor_graph;
   std::shared_ptr<ParameterBlock<3>> state =
       std::make_shared<ParameterBlock<3>>(Eigen::Vector3d(1.0, 2.0, 3.0));
-
-  factor_graph.addState("x", 0.0, state);
-  REQUIRE(factor_graph.getStates().hasState("x", 0.0));
+  StateID state_id("x", 0.0);
+  factor_graph.addState(state_id, state);
+  REQUIRE(factor_graph.getStates().hasState(state_id));
   REQUIRE(factor_graph.numParameterBlocks() == 1);
 
   // Get the state pointer for this state
-  std::vector<StateID> state_ids = {StateID("x", 0.0)};
+  std::vector<StateID> state_ids = {state_id};
   std::vector<double *> estimate_ptrs;
   factor_graph.getStatePointers(state_ids, estimate_ptrs);
   REQUIRE(estimate_ptrs.size() == 1);
   REQUIRE(estimate_ptrs[0] == state->estimatePointer());
 
-  factor_graph.removeState("x", 0.0);
-  REQUIRE(!factor_graph.getStates().hasState("x", 0.0));
+  factor_graph.removeState(state_id);
+  REQUIRE(!factor_graph.getStates().hasState(state_id));
   REQUIRE(factor_graph.numParameterBlocks() == 0);
 
   // Now, add a non-timestamped state
   std::shared_ptr<ParameterBlock<3>> static_state =
       std::make_shared<ParameterBlock<3>>(Eigen::Vector3d(4.0, 5.0, 6.0));
-  factor_graph.addState(StateID("static_state"), static_state);
-  REQUIRE(factor_graph.getStates().hasStaticState("static_state"));
+  StateID id2("x", 0.0);
+  factor_graph.addState(id2, static_state);
+  REQUIRE(factor_graph.getStates().hasState(id2));
   REQUIRE(factor_graph.numParameterBlocks() == 1);
 
   // Remove the state
-  factor_graph.removeState(StateID("static_state"));
-  REQUIRE(!factor_graph.getStates().hasStaticState("static_state"));
+  factor_graph.removeState(id2);
+  REQUIRE(!factor_graph.getStates().hasState(id2));
   REQUIRE(factor_graph.numParameterBlocks() == 0);
 }
 
 TEST_CASE("Test setting states constant") {
-  FactorGraph factor_graph;
+  FactorGraph graph;
   std::shared_ptr<ParameterBlock<3>> state =
       std::make_shared<ParameterBlock<3>>(Eigen::Vector3d(1.0, 2.0, 3.0));
-  factor_graph.addState("x", 0.0, state);
-  factor_graph.setConstant("x", 0.0);
-  REQUIRE(factor_graph.isConstant("x", 0.0));
-
-  factor_graph.setVariable("x", 0.0);
-  REQUIRE(!factor_graph.isConstant("x", 0.0));
+  StateID state_id("x", 0.0);
+  graph.addState(state_id, state);
+  ;
+  graph.setConstant(state_id);
+  REQUIRE(graph.isConstant(state_id));
+  graph.setVariable(state_id);
+  REQUIRE(!graph.isConstant(state_id));
 }
 
 TEST_CASE("Test adding a factor") {
@@ -74,7 +76,7 @@ TEST_CASE("Test adding a factor") {
 
   // Add in the state to the factor graph
   auto state = std::make_shared<ExtendedPoseParameterBlock>();
-  factor_graph.addState("x", 0.0, state);
+  factor_graph.addState(state_ids[0], state);
 
   // Try adding the factor again
   REQUIRE(factor_graph.addFactor(state_ids, cost_function, 0.0));
@@ -84,10 +86,12 @@ TEST_CASE("Test adding a factor") {
 /**
  * This test case creates a simple factor graph with two IMU states and one
  * landmark. Preintegration factors connect the IMU states, and landmark
- * factor connects the IMU states to the landmark. 
- * 
- * The test then calls getMarkovBlanketInfo() to get the information for states connected
- * to the first IMU state, and checks that the correct states and factors are returned.
+ * factor connects the IMU states to the landmark.
+ *
+ * The test then calls getMarkovBlanketInfo() to get the information for
+ states
+ * connected to the first IMU state, and checks that the correct states and
+ * factors are returned.
  */
 TEST_CASE("Test MarkovBlanketInfo") {
   FactorGraph factor_graph;
@@ -99,10 +103,14 @@ TEST_CASE("Test MarkovBlanketInfo") {
   auto b1 = std::make_shared<ParameterBlock<6>>(Eigen::VectorXd::Zero(6));
 
   // Add states to the factor graph
-  factor_graph.addState("X", 0.0, X0);
-  factor_graph.addState("b", 0.0, b0);
-  factor_graph.addState("X", 1.0, X1);
-  factor_graph.addState("b", 1.0, b1);
+  StateID x0_id("X", 0.0);
+  StateID b0_id("b", 0.0);
+  StateID x1_id("X", 1.0);
+  StateID b1_id("b", 1.0);
+  factor_graph.addState(x0_id, X0);
+  factor_graph.addState(b0_id, b0);
+  factor_graph.addState(x1_id, X1);
+  factor_graph.addState(b1_id, b1);
 
   // Create and add IMU preintegration factor between X0, b0 and X1, b1
   IMUIncrement rmi0(Eigen::Matrix<double, 12, 12>::Identity(),
@@ -114,8 +122,7 @@ TEST_CASE("Test MarkovBlanketInfo") {
 
   ceres::CostFunction *preintegration_factor =
       new IMUPreintegrationFactor(rmi0, false);
-  std::vector<StateID> state_ids = {StateID("X", 0.0), StateID("b", 0.0),
-                                    StateID("X", 1.0), StateID("b", 1.0)};
+  std::vector<StateID> state_ids = {x0_id, b0_id, x1_id, b1_id};
 
   factor_graph.addFactor(state_ids, preintegration_factor, 1.0);
   REQUIRE(factor_graph.numResidualBlocks() == 1);
@@ -150,8 +157,8 @@ TEST_CASE("Test MarkovBlanketInfo") {
   std::vector<ParameterBlockInfo> connected_states;
   std::vector<ceres::ResidualBlockId> factors_m;
   std::vector<ceres::ResidualBlockId> factors_r;
-  bool success = factor_graph.getMarkovBlanketInfo(
-      states_m, connected_states, factors_m, factors_r);
+  bool success = factor_graph.getMarkovBlanketInfo(states_m, connected_states,
+                                                   factors_m, factors_r);
 
   REQUIRE(success);
 
