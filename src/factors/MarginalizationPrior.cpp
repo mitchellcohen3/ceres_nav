@@ -87,14 +87,23 @@ bool MarginalizationPrior::Evaluate(double const *const *Parameters,
     // LOG(INFO) << "Parameter block size: " << parameter_blocks_[nState].param_ptr->dimension();
     // LOG(INFO) << "Local size: " << parameter_blocks_[nState].param_ptr->minimalDimension();
 
-    ParameterBlockInfo param_block = parameter_blocks_[nState];
+    const ParameterBlockInfo &param_block = parameter_blocks_[nState];
     int global_size = param_block.param_ptr->dimension();
     int local_size = param_block.param_ptr->minimalDimension();
 
-    // Map the relevant variables
-    const VectorRefConst<double, Dynamic> State(Parameters[nState],
-                                                global_size);
-    const Vector LinearState = param_block.linearization_point;
+    Eigen::Map<const Eigen::VectorXd> State(Parameters[nState], global_size); 
+    Eigen::Map<const Eigen::VectorXd> LinearState(param_block.linearization_point.data(), global_size);
+    // Eigen::VectorXd State_2 = param_block.param_ptr->getEstimate();
+
+    // Eigen::VectorXd diff = State - State_2;
+    // LOG(INFO) << "Norm between state and estimate: " << diff.norm();
+    // std::cout << "State: " << State.transpose() << std::endl;
+    // std::cout << "Estimate: " << State_2.transpose() << std::endl;
+
+    // // Map the relevant variables
+    // const VectorRefConst<double, Dynamic> State(Parameters[nState],
+    //                                             global_size);
+    // const Vector LinearState = param_block.linearization_point;
 
 
     // Compute the error for this state block
