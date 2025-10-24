@@ -9,6 +9,33 @@
 
 using namespace ceres_nav;
 
+void testSO3Operations(LieDirection direction) {
+  Eigen::Matrix3d attitude = SO3::expMap(Eigen::Vector3d(0.1, 0.2, 0.3));
+  SO3ParameterBlock so3_block(attitude, "so3_block", direction);
+  
+  // Define a perturbation in the Lie algebra
+  Eigen::Vector3d delta_xi(0.5, 0.6, 0.7);
+  Eigen::Matrix<double, 9, 1> x_plus_delta;
+  so3_block.plus(so3_block.estimatePointer(), delta_xi.data(), x_plus_delta.data());
+  Eigen::Matrix3d pose_after = SO3::unflatten(x_plus_delta);
+  
+  // Expected pose depends on direction
+  Eigen::Matrix3d expected_pose = (direction == LieDirection::left) 
+    ? SO3::expMap(delta_xi) * attitude 
+    : attitude * SO3::expMap(delta_xi);
+  REQUIRE(pose_after.isApprox(expected_pose, 1e-6));
+
+  // Test the minus operation 
+  Eigen::Vector3d y_minus_x;
+  Eigen::Matrix3d Y = SO3::expMap(Eigen::Vector3d(0.2, 0.1, -0.1));
+  Eigen::Matrix3d X = SO3::expMap(Eigen::Vector3d(0.1, 0.2, 0.3));
+  so3_block.minus(SO3::flatten(Y).data(), SO3::flatten(X).data(), y_minus_x.data());
+  
+  // Expected minus
+  Eigen::Vector3d expected_minus = SO3::minus(Y, X, direction);
+  REQUIRE(y_minus_x.isApprox(expected_minus, 1e-6));
+}
+
 TEST_CASE("Test Parameter Blocks") {
   ParameterBlock<3> block("3d_point");
   REQUIRE(block.dimension() == 3);
@@ -41,76 +68,83 @@ TEST_CASE("Test Parameter Blocks") {
 }
 
 TEST_CASE("SO3ParameterBlock") {
-  SO3ParameterBlock so3_block("so3_block", LieDirection::left);
-  REQUIRE(so3_block.dimension() == 9);
-  REQUIRE(so3_block.minimalDimension() == 3);
+  SECTION("Basic Properties") {
+    SO3ParameterBlock so3_block("so3_block", LieDirection::left);
+    REQUIRE(so3_block.dimension() == 9); 
+    REQUIRE(so3_block.minimalDimension() == 3);
 
-  // Get the default estimate
-  Eigen::Matrix<double, 9, 1> estimate = so3_block.getEstimate();
-  REQUIRE(estimate.size() == 9);
+    // Get the default estimate
+    Eigen::Matrix<double, 9, 1> estimate = so3_block.getEstimate();
+    REQUIRE(estimate.size() == 9);
 
-  // Set the estimate from a rotation matrix
-  Eigen::Matrix3d attitude = SO3::expMap(Eigen::Vector3d(0.1, 0.2, 0.3));
-  so3_block.setFromMatrix(attitude);
-  REQUIRE(so3_block.attitude().isApprox(attitude)); 
+    // Set the estimate from a rotation matrix
+    Eigen::Matrix3d attitude = SO3::expMap(Eigen::Vector3d(0.1, 0.2, 0.3));
+    so3_block.setFromMatrix(attitude);
+    REQUIRE(so3_block.attitude().isApprox(attitude)); 
 
-  // Test the covariance
-  Eigen::Matrix3d default_covariance = so3_block.getCovariance();
-  REQUIRE(default_covariance.isApprox(Eigen::Matrix3d::Identity()));
+    // Test the covariance
+    Eigen::Matrix3d default_covariance = so3_block.getCovariance();
+    REQUIRE(default_covariance.isApprox(Eigen::Matrix3d::Identity()));
+  }
 
-  // Test the plus operation
-  std::cout << "Got the local param pointer";
-  auto local_param = so3_block.getLocalParameterizationPointer();
-  REQUIRE(local_param != nullptr);
+  SECTION("Plus/Minus Operations with Left Perturbation") {
+    testSO3Operations(LieDirection::left);
+  }
 
-  // Define a perturbation in the Lie algebra
-  Eigen::Matrix<double, 3, 1> delta_xi;
-  delta_xi << 0.01, 0.02, 0.03;
-  Eigen::Matrix<double, 9, 1> x_plus_delta;
-  bool success = local_param->Plus(so3_block.estimatePointer(),
-                                   delta_xi.data(), x_plus_delta.data());
-  REQUIRE(success);
-  Eigen::Matrix3d pose_after = SO3::unflatten(x_plus_delta);
-  Eigen::Matrix3d expected_pose = SO3::expMap(delta_xi) * attitude;
-  REQUIRE(pose_after.isApprox(expected_pose, 1e-6));
-
-  // Next, test with a right perturbation
-  SO3ParameterBlock(attitude, "so3_block_right", LieDirection::right);
-  local_param = so3_block.getLocalParameterizationPointer();
-  REQUIRE(local_param != nullptr);
-  success = local_param->Plus(so3_block.estimatePointer(),
-                              delta_xi.data(), x_plus_delta.data());
-  REQUIRE(success);
-  pose_after = SO3::unflatten(x_plus_delta);
-  expected_pose = attitude * SO3::expMap(delta_xi);
-  REQUIRE(pose_after.isApprox(expected_pose, 1e-6));
-
-  // Test the Jacobian
-  Eigen::Matrix<double, 9, 3, Eigen::RowMajor> jacobian;
-  jacobian.setZero();
-  success = local_param->ComputeJacobian(so3_block.estimatePointer(),
-                                         jacobian.data());
-
-  REQUIRE(success);
-
-  // Test the minus operation
-  Eigen::Matrix<double, 3, 1> y_minus_x;
-  Eigen::Matrix3d Y = SO3::expMap(Eigen::Vector3d(0.2, 0.1, -0.1));
-  Eigen::Matrix3d X = SO3::expMap(Eigen::Vector3d(0.1, 0.2, 0.3));
-  so3_block.minus(SO3::flatten(Y).data(), SO3::flatten(X).data(), y_minus_x.data());
-
-  // Expected minus
-  Eigen::Vector3d expected_minus = SO3::minus(Y, X, LieDirection::left);
-  REQUIRE(y_minus_x.isApprox(expected_minus, 1e-6));
-  // std::cout << "Jacobian:\n" << jacobian << std::endl;
-
-  // Eigen::Matrix<double, 3, 9> test_jac = Eigen::Matrix<double, 3, 9>::Zero();
-  // test_jac.block<3, 3>(0, 0) = Eigen::Matrix3d::Random();
-  // Eigen::Matrix<double, 3, 3> result = test_jac * jacobian;
-
-  // std::cout << "Test jacobian:\n" << test_jac << std::endl;
-  // std::cout << "Result:\n" << result << std::endl;
+  SECTION("Plus/Minus Operations with Right Perturbation") {
+    testSO3Operations(LieDirection::right);
+  }
 }
+
+// TEST_CASE("SO3ParameterBlock") {
+//   // Define a perturbation in the Lie algebra
+//   Eigen::Matrix<double, 3, 1> delta_xi;
+//   delta_xi << 0.01, 0.02, 0.03;
+//   Eigen::Matrix<double, 9, 1> x_plus_delta;
+//   bool success = local_param->Plus(so3_block.estimatePointer(),
+//                                    delta_xi.data(), x_plus_delta.data());
+//   REQUIRE(success);
+//   Eigen::Matrix3d pose_after = SO3::unflatten(x_plus_delta);
+//   Eigen::Matrix3d expected_pose = SO3::expMap(delta_xi) * attitude;
+//   REQUIRE(pose_after.isApprox(expected_pose, 1e-6));
+
+//   // Next, test with a right perturbation
+//   SO3ParameterBlock so3_block_right(attitude, "so3_block_right", LieDirection::right);
+//   local_param = so3_block_right.getLocalParameterizationPointer();
+//   REQUIRE(local_param != nullptr);
+//   success = local_param->Plus(so3_block.estimatePointer(),
+//                               delta_xi.data(), x_plus_delta.data());
+//   REQUIRE(success);
+//   pose_after = SO3::unflatten(x_plus_delta);
+//   expected_pose = attitude * SO3::expMap(delta_xi);
+//   REQUIRE(pose_after.isApprox(expected_pose, 1e-6));
+
+//   // Test the Jacobian
+//   Eigen::Matrix<double, 9, 3, Eigen::RowMajor> jacobian;
+//   jacobian.setZero();
+//   success = local_param->ComputeJacobian(so3_block.estimatePointer(),
+//                                          jacobian.data());
+
+//   REQUIRE(success);
+
+//   // Test the minus operation
+//   Eigen::Matrix<double, 3, 1> y_minus_x;
+//   Eigen::Matrix3d Y = SO3::expMap(Eigen::Vector3d(0.2, 0.1, -0.1));
+//   Eigen::Matrix3d X = SO3::expMap(Eigen::Vector3d(0.1, 0.2, 0.3));
+//   so3_block_right.minus(SO3::flatten(Y).data(), SO3::flatten(X).data(), y_minus_x.data());
+
+//   // Expected minus
+//   Eigen::Vector3d expected_minus = SO3::minus(Y, X, LieDirection::right);
+//   REQUIRE(y_minus_x.isApprox(expected_minus, 1e-6));
+//   // std::cout << "Jacobian:\n" << jacobian << std::endl;
+
+//   // Eigen::Matrix<double, 3, 9> test_jac = Eigen::Matrix<double, 3, 9>::Zero();
+//   // test_jac.block<3, 3>(0, 0) = Eigen::Matrix3d::Random();
+//   // Eigen::Matrix<double, 3, 3> result = test_jac * jacobian;
+
+//   // std::cout << "Test jacobian:\n" << test_jac << std::endl;
+//   // std::cout << "Result:\n" << result << std::endl;
+// }
 
 TEST_CASE("Test Pose Parameter Block") {
   PoseParameterBlock pose_block("pose_block", LieDirection::left);

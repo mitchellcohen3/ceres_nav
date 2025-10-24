@@ -23,7 +23,7 @@ class SO3ParameterBlock : public ParameterBlock<9, 3> {
 public:
   explicit SO3ParameterBlock(const std::string &name = "so3_param_block",
                              LieDirection direction = LieDirection::left)
-      : ParameterBlock<9, 3>(name) {
+      : ParameterBlock<9, 3>(name), direction_(direction) {
     local_parameterization_ptr_ = new SO3LocalParameterization(direction);
   }
 
@@ -44,6 +44,17 @@ public:
     return SO3::unflatten(this->getEstimate());
   }
 
+  virtual void minus(const double *y_, const double *x_,
+                     double *y_minus_x_) const override final {
+    Eigen::Map<const Eigen::Matrix<double, 9, 1>> y(y_);
+    Eigen::Map<const Eigen::Matrix<double, 9, 1>> x(x_);
+    Eigen::Map<Eigen::Matrix<double, 3, 1>> y_minus_x(y_minus_x_);
+
+    Eigen::Matrix3d Y = SO3::unflatten(y);
+    Eigen::Matrix3d X = SO3::unflatten(x);
+    y_minus_x = SO3::minus(Y, X, direction_);
+  }
+
   // The plus operator
   virtual void plus(const double *x, const double *delta_xi,
                     double *x_plus_delta_xi) const override final {
@@ -55,6 +66,9 @@ public:
                             double *jacobian) const override final {
     local_parameterization_ptr_->ComputeJacobian(x0, jacobian);
   }
+
+protected:
+  LieDirection direction_;
 };
 
 } // namespace ceres_nav

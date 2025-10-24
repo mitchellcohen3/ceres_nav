@@ -54,7 +54,7 @@ class InertialNavigationExampleConfig:
     imu_freq: int = 500.0
     gps_freq: int = 10
     t_end: float = 50.0
-    noise_active: bool = True
+    noise_active: bool = False
     gravity_mag = 9.80665
     lie_direction: str = "left"
     # The state representation to use for the navigation state
