@@ -63,6 +63,7 @@ void FactorGraph::addState(const StateID &state_id,
 // Add a factor to the problem
 bool FactorGraph::addFactor(const std::vector<StateID> &state_ids,
                             ceres::CostFunction *cost_function, double stamp,
+                            FactorInfo &info,
                             ceres::LossFunction *loss_function) {
   // Build vector of state pointers
   std::vector<double *> state_ptrs;
@@ -97,8 +98,35 @@ bool FactorGraph::addFactor(const std::vector<StateID> &state_ids,
 
   // Add to map
   residual_blocks_to_cost_function_map.insert({residual_id, cost_function});
+
+  info.residual_block_id = residual_id;
+  info.connected_states = state_ids;
+  info.timestamp = stamp;
+
   return true;
 }
+
+bool FactorGraph::addFactor(const std::vector<StateID> &state_ids,
+                            ceres::CostFunction *cost_function, double stamp,
+                            ceres::LossFunction *loss_function) {
+  FactorInfo factor_info;
+  return addFactor(state_ids, cost_function, stamp, factor_info, loss_function);
+}
+
+bool FactorGraph::removeFactor(const FactorInfo &info) {
+  // Remove from the Ceres problem
+  problem_.RemoveResidualBlock(info.residual_block_id);
+  // Remove from the map
+  auto it = residual_blocks_to_cost_function_map.find(info.residual_block_id);
+  if (it != residual_blocks_to_cost_function_map.end()) {
+    residual_blocks_to_cost_function_map.erase(it);
+  } else {
+    LOG(WARNING) << "Trying to remove a factor that does not exist in the map";
+  }
+
+  return true;
+}
+
 
 void FactorGraph::solve() {
   /** check if config is valid */

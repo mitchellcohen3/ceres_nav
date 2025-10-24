@@ -17,8 +17,13 @@
 
 using namespace ceres_nav;
 
+class TestableFactorGraph : public FactorGraph {
+  public:
+    using FactorGraph::removeState;
+};
+
 TEST_CASE("Test Add/Remove states from FactorGraph") {
-  FactorGraph factor_graph;
+  TestableFactorGraph factor_graph;
   std::shared_ptr<ParameterBlock<3>> state =
       std::make_shared<ParameterBlock<3>>(Eigen::Vector3d(1.0, 2.0, 3.0));
 

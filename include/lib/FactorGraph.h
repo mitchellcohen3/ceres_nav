@@ -6,16 +6,23 @@
 #include "factors/MarginalizationPrior.h"
 #include <ceres/ceres.h>
 
-/**
- * @brief Main class that contains all the information about an optimization
- * problem. Contains methods for interacting wit the problem (i.e, adding
- * states, etc.)
- * The main difference between this and libRSF::FactorGraph is that
- * to use this, the user already creates ParameterBlock objects rather than
- */
-
 namespace ceres_nav {
 
+/**
+ * @brief A struct containing information about a factor added to the graph.
+ */
+struct FactorInfo {
+  ceres::ResidualBlockId residual_block_id;
+  std::vector<StateID> connected_states;
+  double timestamp;
+  std::string name;
+};
+
+/**
+ * @brief Main class that contains all the information about an optimization
+ * problem. Contains methods for interacting with the problem (i.e, adding
+ * states, factors, marginalizing states, etc.)
+ */
 class FactorGraph {
 public:
   using StatePtr = std::shared_ptr<ParameterBlockBase>;
@@ -56,7 +63,24 @@ public:
                  ceres::LossFunction *loss_function = nullptr);
 
   /**
-   * @brief Solves the optimization problem using the current solver options.
+   * @brief Adds a factor to the problem, and additionally returns
+   * information about the added factor via the FactorInfo struct.
+   *
+   * This allows the user to manually remove factors later on if desired.
+   */
+  bool addFactor(const std::vector<StateID> &state_ids,
+                 ceres::CostFunction *cost_function, double stamp,
+                 FactorInfo &info,
+                 ceres::LossFunction *loss_function = nullptr);
+
+  /**
+   * @brief Removes a factor from the problem given its FactorInfo.
+   */
+  bool removeFactor(const FactorInfo &info);
+
+  /**
+   * @brief Solves the optimization problem using the current solver
+   * options.
    */
   void solve();
 
@@ -87,44 +111,42 @@ public:
                        std::vector<ceres::ResidualBlockId> &factors_r) const;
 
   /**
-   * @brief Removes a timestamped state from the problem.
-   */
-  void removeState(const std::string &name, double timestamp);
-
-  /**
-   * @brief Removes a state from the problem given a StateID.
-   */
-  void removeState(const StateID &state_id);
-
-  /**
-   * @brief Sets a state as constant in the optimization problem.
-   */
-  void setConstant(const std::string &name, double timestamp);
-
-  /**
-   * @brief Checks if a state is constant in the optimization problem.
-   */
-  bool isConstant(const std::string &name, double timestamp);
-
-  /**
-   * @brief Sets a state as variable in the optimization problem.
-   */
-  void setVariable(const std::string &name, double timestamp);
-
-  /**
-   * @brief Marginalizes out a set of states from the problem
+   * @brief Marginalizes out a set of states from the problem.
+   *
+   * This function removes the specified states from the optimization
+   * problem by marginalizing them out. This process creates a new prior factor
+   * on all states in the Markov blanket that captures the information from the
+   * marginalized states and the factors they were involved in. The prior factor
+   * is constructed using the problem linearized at the best estimates of the
+   * states.
+   *
+   * @param state_ids The StateIDs of the states to marginalize out.
+   * @return true if successful, false otherwise.
    */
   bool marginalizeStates(std::vector<StateID> state_ids);
 
   /**
-   * @brief A version of marginalizeStates that also allows the user to
-   * specify linearization points to evaluate the marginalization at for each
-   * state ID. For a given state, if no linearization point is provided, the
-   * current estimate is used.
+   * @brief Marginalizes out a set of states from the problem, using
+   * provided linearization points for the states.
+   *
+   * This overload allows for specifying custom linearization points for the
+   * states involved in the marginalization process. This can be useful when you
+   * want to ensure consistency in the linearization points across sucessive
+   * marginalizations.
+   *
+   * @param states_m The StateIDs of the states to marginalize out.
+   * @param linearization_points A map from StateID to the linearization point
+   * to use for that state during marginalization. If a state is not present in
+   * the map, its current estimate will be used.
    */
   bool marginalizeStates(
       std::vector<StateID> states_m,
       const std::map<StateID, Eigen::VectorXd> &linearization_points);
+
+  // Sets states as constant or variable
+  void setConstant(const std::string &name, double timestamp);
+  void setVariable(const std::string &name, double timestamp);
+  bool isConstant(const std::string &name, double timestamp);
 
   /**
    * @brief Computes the covariance of a state with a given name at
@@ -253,6 +275,16 @@ protected:
   bool getCostFunctionPointersForResidualBlocks(
       const std::vector<ceres::ResidualBlockId> &residual_ids,
       std::vector<ceres::CostFunction *> &cost_functions) const;
+
+  /**
+   * @brief Removes a timestamped state from the problem.
+   */
+  void removeState(const std::string &name, double timestamp);
+
+  /**
+   * @brief Removes a state from the problem given a StateID.
+   */
+  void removeState(const StateID &state_id);
 
   // The collection of states
   StateCollection states_;
