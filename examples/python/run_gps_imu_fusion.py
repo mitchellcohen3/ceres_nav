@@ -444,8 +444,8 @@ if __name__ == "__main__":
     )
     executable_path = os.path.join(cur_dir, "../../build/examples/gps_imu_example")
 
-    config.lie_direction = "right"
-    config.state_representation = "decoupled"
+    config.lie_direction = "left" # left or right
+    config.state_representation = "SE23" # SE23 or decoupled
 
     # Generate data an run the example
     data_fpaths = generate_and_save_data(config, save_dir)

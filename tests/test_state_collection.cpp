@@ -17,82 +17,127 @@
 
 using namespace ceres_nav;
 
-TEST_CASE("Test Add/Remove Operations") {
-  StateCollection state_collection;
+TEST_CASE("State ID Comparisons") {
+  SECTION("Test timestamp rounding and equality") {
+    StateID id1("pose", 1.2344, 1e-3);
+    StateID id2("pose", 1.2338, 1e-3);
 
-  std::shared_ptr<ParameterBlock<3>> state =
-      std::make_shared<ParameterBlock<3>>(Eigen::Vector3d(1.0, 2.0, 3.0));
+    REQUIRE(id1.timestamp().value() == 1.234);
+    REQUIRE(id2.timestamp().value() == 1.234);
+    REQUIRE(id1 == id2);
+  }
 
-  state_collection.addState("x", 0.0, state);
-  state_collection.addState("x", 1.0, state);
-  state_collection.addState("x", 2.0, state);
+  SECTION("Different keys are not equal") {
+    StateID id3("landmark");
+    StateID id4("landmark", 0.0);
+    REQUIRE(id3 != id4);
+  }
 
-  REQUIRE(state_collection.hasState("x", 0.0));
-  REQUIRE(state_collection.hasState("x", 1.0));
-  REQUIRE(state_collection.hasState("x", 2.0));
-  REQUIRE(!state_collection.hasState("x", 3.0));
-  REQUIRE(state_collection.getNumStateTypes() == 1);
-  REQUIRE(state_collection.getNumStatesForType("x") == 3);
+  SECTION("Change default precision") {
+    StateID::setDefaultPrecision(1e-9);
+    double test_time = 2.123456789;
+    StateID id5("x", test_time);
+    REQUIRE(id5.timestamp().value() == test_time);
+    StateID::setDefaultPrecision(1e-6);
+  }
 
-  // Now, try removing a state
-  state_collection.removeState("x", 1.0);
-  REQUIRE(state_collection.getNumStatesForType("x") == 2);
-  REQUIRE(!state_collection.hasState("x", 1.0));
+  SECTION("StateID as map key") {
+    std::map<StateID, int> state_map;
 
-  // Remove the other two states
-  state_collection.removeState("x", 0.0);
-  state_collection.removeState("x", 2.0);
-  REQUIRE(state_collection.getNumStatesForType("x") == 0);
+    StateID id1("x", 10.0);
+    StateID id2("x", 20.0);
+    StateID id3("x", 30.0);
+    StateID id4("y");
+    StateID id5("z");
+
+    state_map[id1] = 1;
+    state_map[id2] = 2;
+    state_map[id3] = 3;
+    state_map[id4] = 4;
+    state_map[id5] = 5;
+    REQUIRE(state_map.size() == 5);
+
+    REQUIRE(state_map[id1] == 1);
+    REQUIRE(state_map[id2] == 2);
+    REQUIRE(state_map[id3] == 3);
+    REQUIRE(state_map[id4] == 4);
+    REQUIRE(state_map[id5] == 5);
+  }
 }
 
-TEST_CASE("Test Multiple State Types") {
-  StateCollection state_collection;
-  Eigen::Vector3d x0 = Eigen::Vector3d(1.0, 2.0, 3.0);
-  Eigen::Matrix<double, 4, 1> x1 = {1.0, 2.0, 3.0, 4.0};
+TEST_CASE("Add time-varying parameter block", "[StateCollection]") {
+  StateCollection collection;
+  auto block =
+      std::make_shared<ParameterBlock<3>>(Eigen::Vector3d(1.0, 2.0, 3.0));
+  StateID state_id("velocity", 10.0);
+  REQUIRE(collection.addState(state_id, block));
+  REQUIRE(collection.hasState(state_id));
+  REQUIRE(collection.size() == 1);
+  REQUIRE(collection.getNumberOfStatesForType("velocity") == 1);
 
-  std::shared_ptr<ParameterBlock<3>> state =
-      std::make_shared<ParameterBlock<3>>(x0);
-  std::shared_ptr<ParameterBlock<4>> state_2 =
-      std::make_shared<ParameterBlock<4>>(x1);
+  auto retrieved_block = collection.getState(state_id);
+  REQUIRE(retrieved_block == block);
 
-  // Add the states to the collection
-  state_collection.addState("x1", 0.0, state);
-  state_collection.addState("x2", 0.0, state_2);
+  // Try adding the same state again - should fail
+  REQUIRE(!collection.addState(state_id, block));
 
-  // Try retrieving the states
-  std::shared_ptr<ParameterBlockBase> retrieved_state =
-      state_collection.getState("x1", 0.0);
-  std::shared_ptr<ParameterBlockBase> retrieved_state_2 =
-      state_collection.getState("x2", 0.0);
+  // Now, remove the state
+  REQUIRE(collection.removeState(state_id));
+  REQUIRE(!collection.hasState(state_id));
+  REQUIRE(collection.size() == 0);
+  REQUIRE(collection.getState(state_id) == nullptr);
+  REQUIRE(collection.getNumberOfStatesForType("velocity") == 0);
 
-  REQUIRE(retrieved_state != nullptr);
-  REQUIRE(retrieved_state_2 != nullptr);
+  // Add in two states
+  StateID state_id2("velocity", 12.0);
+  REQUIRE(collection.addState(state_id, block));
+  REQUIRE(collection.addState(state_id2, block));
+  REQUIRE(collection.size() == 2);
+  REQUIRE(collection.getNumberOfStatesForType("velocity") == 2);
+}
 
-  // Check the estimates
-  Eigen::Vector3d estimate_x0 = retrieved_state->getEstimate();
-  Eigen::Vector4d estimate_x1 = retrieved_state_2->getEstimate();
-  REQUIRE(estimate_x0.isApprox(x0));
-  REQUIRE(estimate_x1.isApprox(x1));
+TEST_CASE("Add static states", "[StateCollection]") {
+  StateCollection collection;
+  auto block =
+      std::make_shared<ParameterBlock<3>>(Eigen::Vector3d(4.0, 5.0, 6.0));
+  StateID id("landmark");
+  REQUIRE(collection.addState(id, block));
+  REQUIRE(collection.hasState(id));
+  REQUIRE(collection.size() == 1);
+  auto retrieved_block = collection.getState(id);
+  REQUIRE(retrieved_block == block);
 
-  // Try adding a PoseParameterBlock
-  Eigen::Matrix4d pose =
-      SE3::fromComponents(SO3::expMap(Eigen::Vector3d(0.1, 0.2, 0.3)),
-                          Eigen::Vector3d(1.0, 2.0, 3.0));
-  std::shared_ptr<PoseParameterBlock> pose_state =
-      std::make_shared<PoseParameterBlock>(pose);
+  // Try adding the same static state again - should fail
+  REQUIRE(!collection.addState(id, block));
+  // Now, remove the static state
+  REQUIRE(collection.removeState(id));
+  REQUIRE(!collection.hasState(id));
+  REQUIRE(collection.size() == 0);
+  REQUIRE(collection.getState(id) == nullptr);
+}
 
-  state_collection.addState("pose", 0.0, pose_state);
+TEST_CASE("Test multiple state types", "[StateCollection]") {
+  StateCollection collection;
+  auto block1 =
+      std::make_shared<ParameterBlock<3>>(Eigen::Vector3d(1.0, 2.0, 3.0));
+  auto block2 =
+      std::make_shared<ParameterBlock<4>>(Eigen::Vector4d(4.0, 5.0, 6.0, 7.0));
+  StateID id1("x", 0.0);
+  StateID id2("y", 0.0);
 
-  // Retrieve the pose state using the method that downcasts to
-  // PoseParameterBlock
-  std::shared_ptr<PoseParameterBlock> retrieved_pose_state =
-      state_collection.getState<PoseParameterBlock>("pose", 0.0);
-  REQUIRE(retrieved_pose_state != nullptr);
-  REQUIRE(retrieved_pose_state->pose().isApprox(pose));
+  REQUIRE(collection.addState(id1, block1));
+  REQUIRE(collection.addState(id2, block2));
+
+  // Try retrieving both states
+  auto retrieved_block1 = collection.getState(id1);
+  auto retrieved_block2 = collection.getState(id2);
+
+  REQUIRE(retrieved_block1 == block1);
+  REQUIRE(retrieved_block2 == block2);
 }
 
 TEST_CASE("Test Timestamp Operations") {
-  StateCollection state_collection;
+  StateCollection collection;
 
   Eigen::Vector3d x(1.0, 2.0, 3.0);
   // Add states with timestamps and then try to retrieve them
@@ -110,11 +155,10 @@ TEST_CASE("Test Timestamp Operations") {
 
     std::shared_ptr<ParameterBlock<3>> state =
         std::make_shared<ParameterBlock<3>>(x);
-    state_collection.addState("x", cur_stamp, state);
-
-    std::shared_ptr<ParameterBlockBase> retrieved_state =
-        state_collection.getState("x", cur_stamp);
-    REQUIRE(retrieved_state != nullptr);
+    StateID state_id("x", cur_stamp);
+    collection.addState(state_id, state);
+    REQUIRE(collection.getState(state_id) != nullptr);
+    REQUIRE(collection.getState(state_id)->getEstimate().isApprox(x));
 
     state_values.push_back(x);
     timestamps.push_back(cur_stamp);
@@ -123,8 +167,8 @@ TEST_CASE("Test Timestamp Operations") {
 
   // Test the oldest/newest state retrieval
   double oldest_stamp, latest_stamp;
-  REQUIRE(state_collection.getOldestStamp("x", oldest_stamp));
-  REQUIRE(state_collection.getLatestStamp("x", latest_stamp));
+  REQUIRE(collection.getOldestStamp("x", oldest_stamp));
+  REQUIRE(collection.getLatestStamp("x", latest_stamp));
 
   // Check that the oldest and latest timestamps approximately match
   REQUIRE_THAT(oldest_stamp,
@@ -134,14 +178,14 @@ TEST_CASE("Test Timestamp Operations") {
 
   // Get the timestamps for the states
   std::vector<double> timestamps_retrieved;
-  REQUIRE(state_collection.getTimesForState("x", timestamps_retrieved));
+  REQUIRE(collection.getTimesForState("x", timestamps_retrieved));
   REQUIRE(timestamps_retrieved.size() == num_states);
 
   // Get the oldest and latest states from the collection
   std::shared_ptr<ParameterBlock<3>> oldest_state =
-      state_collection.getOldestState<ParameterBlock<3>>("x");
+      collection.getOldestState<ParameterBlock<3>>("x");
   std::shared_ptr<ParameterBlock<3>> latest_state =
-      state_collection.getLatestState<ParameterBlock<3>>("x");
+      collection.getLatestState<ParameterBlock<3>>("x");
 
   REQUIRE(oldest_state != nullptr);
   REQUIRE(latest_state != nullptr);
@@ -149,62 +193,23 @@ TEST_CASE("Test Timestamp Operations") {
   REQUIRE(latest_state->getEstimate().isApprox(state_values.back()));
 }
 
-TEST_CASE("Test Static States") {
-    StateCollection state_collection;
+TEST_CASE("Test estimate pointer functions", "[StateCollection]") {
+  StateCollection collection;
 
-    auto state_1 = std::make_shared<ParameterBlock<3>>(Eigen::Vector3d(1.0, 2.0, 3.0));
-    auto state_2 = std::make_shared<ParameterBlock<3>>(Eigen::Vector3d(4.0, 5.0, 6.0));
+  Eigen::Vector3d x(1.0, 2.0, 3.0);
+  StateID state_id("x", 100.0);
+  std::shared_ptr<ParameterBlock<3>> state =
+      std::make_shared<ParameterBlock<3>>(x);
+  collection.addState(state_id, state);
 
-    state_collection.addStaticState("x", state_1);
-    state_collection.addState("y", 0.0, state_2);
+  auto retrieved_state =
+      collection.getStateByEstimatePointer(state->estimatePointer());
+  REQUIRE(retrieved_state != nullptr);
+  REQUIRE(retrieved_state->getEstimate().isApprox(x));
 
-    REQUIRE(state_collection.hasStaticState("x"));
-    REQUIRE(!state_collection.hasStaticState("y"));
-    REQUIRE(state_collection.hasStateType("x"));
-    REQUIRE(state_collection.hasState("y", 0.0));
-
-    auto static_state = state_collection.getStaticState<ParameterBlock<3>>("x");
-    REQUIRE(static_state != nullptr);
-    REQUIRE(static_state->getEstimate().isApprox(Eigen::Vector3d(1.0, 2.0, 3.0)));
-
-    // Try getting a state by it's estimate pointer
-    double* state_ptr = state_1->estimatePointer();
-    auto found_state = state_collection.getStateByEstimatePointer(state_ptr);
-    REQUIRE(found_state != nullptr);
-    REQUIRE(found_state->getEstimate().isApprox(Eigen::Vector3d(1.0, 2.0, 3.0)));
-
-    double* state_ptr_2 = state_2->estimatePointer();
-    auto found_state_2 = state_collection.getStateByEstimatePointer(state_ptr_2);
-    REQUIRE(found_state_2 != nullptr);
-    REQUIRE(found_state_2->getEstimate().isApprox(Eigen::Vector3d(4.0, 5.0, 6.0)));
-
-    // Test retrieving a state by StateID
-    StateID static_id("x");
-    auto retrieved_static_state = state_collection.getState(static_id);
-    REQUIRE(retrieved_static_state != nullptr);
-    REQUIRE(retrieved_static_state->estimatePointer() == state_ptr);
-
-    // Remove the static state
-    state_collection.removeStaticState("x");
-    REQUIRE(!state_collection.hasStaticState("x"));
+  // Now, try to get the StateID by the estimate pointer
+  StateID retrieved_id;
+  REQUIRE(collection.getStateIDByEstimatePointer(state->estimatePointer(),
+                                                 retrieved_id));
+  REQUIRE(retrieved_id == state_id);
 }
-
-TEST_CASE("Test StateID") {
-    StateID id1("x", 0.1);
-    StateID id2("y");
-
-    REQUIRE(!id1.isStatic());
-    REQUIRE(id2.isStatic());
-
-    // Test storing state IDs in a map
-    std::map<StateID, int> state_map;
-    state_map[id1] = 1;
-    state_map[id2] = 2;
-
-    REQUIRE(state_map.size() == 2);
-
-    // Test retrieving values
-    REQUIRE(state_map.at(id1) == 1);
-    REQUIRE(state_map.at(id2) == 2);
-}
-

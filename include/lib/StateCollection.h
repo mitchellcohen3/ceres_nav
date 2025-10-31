@@ -5,7 +5,6 @@
 #include <unordered_map>
 
 #include "ParameterBlockBase.h"
-#include <glog/logging.h>
 
 namespace ceres_nav {
 struct StateID;
@@ -14,187 +13,63 @@ struct StateID;
 namespace ceres_nav {
 
 /**
- * @brief Holds a collection of states in time, accessible by a string key and a
- * timestamp.
+ * @brief Holds a collection of states, allowing users to add, remove, and
+ * query states by a StateID.
  */
 class StateCollection {
 public:
   StateCollection(){};
 
   /**
-   * @brief Adds a state to the collection with a given name and timestamp.
+   * @brief Adds a parameter block using a StateID.
    */
-  void addState(const std::string &name, double timestamp,
-                std::shared_ptr<ParameterBlockBase> state);
+  bool addState(const StateID &state_id,
+                std::shared_ptr<ParameterBlockBase> param_block);
 
   /**
-   * @brief Adds a non-timestamped (static) state to the collection
+   * @brief Removes a state from the collection using a StateID.
    */
-  void addStaticState(const std::string &name,
-                      std::shared_ptr<ParameterBlockBase> state);
+  bool removeState(const StateID &state_id);
 
   /**
-   * @brief Retrieves a state for a given key and timestamp.
-   *
-   * @param key The key of the state to retrieve.
-   * @param timestamp The timestamp of the state to retrieve.
-   * @return A shared pointer to the state, or nullptr if not found.
-   */
-  std::shared_ptr<ParameterBlockBase> getState(const std::string &key,
-                                               double timestamp) const;
-
-  /**
-   * @brief Retrieves a static (non-timestamped) state for a given key.
-   */
-  std::shared_ptr<ParameterBlockBase>
-  getStaticState(const std::string &key) const;
-
-  /**
-   * @brief Gets a state for a given StateID (which may be static or timestamped).
+   * @brief Query single parameter block using a StateID.
    * Returns nullptr if not found.
    */
   std::shared_ptr<ParameterBlockBase> getState(const StateID &state_id) const;
 
   /**
-   * @brief Templated version of get state that returns a state of a specific
-   * type.
-   *
-   * @param key The key of the state to retrieve.
-   * @param timestamp The timestamp of the state to retrieve.
-   * @return A shared pointer to the state of type T, or nullptr if not found or
-   * if the downcast fails.
+   * @brief Templated version of getState that returns a state of specific type.
    */
-  template <typename T>
-  std::shared_ptr<T> getState(const std::string &key, double timestamp) const {
-    int64_t timestamp_key = timestampToKey(timestamp);
 
-    auto it1 = states_.find(key);
-    // If we've found the key
-    if (it1 != states_.end()) {
-      auto state_it = it1->second.find(timestamp_key);
-      if (state_it != it1->second.end()) {
-        // Attempt to downcast to the specific type T
-        auto casted_ptr = std::dynamic_pointer_cast<T>(state_it->second);
-        if (casted_ptr) {
-          return casted_ptr;
-        } else {
-          // If downcast fails, return nullptr
-          LOG(ERROR) << "Failed to downcast state for key: " << key
-                     << "at timestamp: " << timestamp;
-          return nullptr;
-        }
-      }
+  template <typename T>
+  std::shared_ptr<T> getState(const StateID &state_id) const {
+    auto state = getState(state_id);
+    if (state) {
+      return std::dynamic_pointer_cast<T>(state);
     }
-    // Return nullptr if not found or downcast fails
     return nullptr;
   }
 
   /**
-   * @brief Templated version of getStaticState that returns a static state of
-   * a specific type.
-   *
-   * @param key The key of the state to retrieve.
-   * @return A shared pointer to the static state of type T, or nullptr if not
-   * found or if the downcast fails.
+   * @brief Check if a state exists in the collection using a StateID.
    */
-  template <typename T>
-  std::shared_ptr<T> getStaticState(const std::string &key) const {
-    auto it = static_states_.find(key);
+  bool hasState(const StateID &state_id) const;
 
-    if (it != static_states_.end()) {
-      auto casted_ptr = std::dynamic_pointer_cast<T>(it->second);
-      if (casted_ptr) {
-        return casted_ptr;
-      } else {
-        LOG(ERROR) << "Failed to downcast static state for key: " << key;
-        return nullptr;
-      }
-    }
-
-    LOG(ERROR) << "Static state not found for key: " << key;
-    return nullptr;
-  }
-
-  /**
-   * @brief Removes a state from the collection for a given key and timestamp.
-   *
-   * @param key The key of the state to remove.
-   * @param timestamp The timestamp of the state to remove.
-   */
-  void removeState(const std::string &key, double timestamp);
-
-  /**
-   * @brief Removes a static (non-timestamped) state from the collection.
-   */
-  void removeStaticState(const std::string &key);
-
-  /**
-   * @brief Retrieves a state by its estimate pointer.
-   *
-   * This is useful for finding a state when you have a pointer to its estimate
-   * (i.e., from Ceres.)
-   */
-  std::shared_ptr<ParameterBlockBase>
-  getStateByEstimatePointer(double *ptr) const;
-
-  /**
-   * @brief Retrieves the StateID for a state by its estimate pointer.
-   * This is also useful for getting an associated StateID when you have a
-   * pointer to its estimate.
-   *
-   * Returns false if the pointer is not found.
-   */
-  bool getStateIDByEstimatePointer(double *ptr, StateID &state_id) const;
-
-  // Check if a state exists at a given timestamp
-  bool hasState(const std::string &key, double timestamp) const;
-  bool hasStaticState(const std::string &key) const;
-  bool hasStateType(const std::string &key) const;
-
-  /**
-   * @brief Get the number of different state types stored in the collection.
-   */
-  size_t getNumStateTypes() const { return states_.size() + static_states_.size(); }
-
-  /**
-   * @brief Get the number of states for a given type.
-   *
-   * @param key The key of the state type to check.
-   * @return The number of states for the given type.
-   */
-  size_t getNumStatesForType(const std::string &key) const {
-    auto it = states_.find(key);
-    if (it != states_.end()) {
-      return it->second.size();
-    }
-    return 0;
-  }
-
-  /**
-   * @brief Get the first timestamp for a given key.
-   */
-  bool getOldestStamp(const std::string &key, double &stamp) const;
-
-  /**
-   * @brief Gets the last timestamp for a given key.
-   */
-  bool getLatestStamp(const std::string &key, double &stamp) const;
-
-  /**
-   * @brief Gets all timestamps for a given key.
-   */
+  /// Get some information about the timestamps for a given state type
+  bool getOldestStamp(const std::string &key, double &timestamp) const;
+  bool getLatestStamp(const std::string &key, double &timestamp) const;
   bool getTimesForState(const std::string &key,
-                        std::vector<double> &stamps) const;
+                        std::vector<double> &timestamps) const;
 
-  // Get the oldest and latest states for a given key
-  // Returns a pointer to the base class.
+  // Gets the oldest and latest states for a given key
   std::shared_ptr<ParameterBlockBase>
   getOldestState(const std::string &key) const;
   std::shared_ptr<ParameterBlockBase>
   getLatestState(const std::string &key) const;
 
   /**
-   * @brief Gets the oldest state of a specific type for a given key.
+   * @brief Templated version of getOldestState that returns a state of
+   * specific type.
    */
   template <typename T>
   std::shared_ptr<T> getOldestState(const std::string &key) const {
@@ -218,28 +93,63 @@ public:
     return nullptr;
   }
 
+  /**
+   * @brief Retrieves a state by its estimate pointer.
+   *
+   * This is useful for finding a state when you have a pointer to its
+   estimate
+   * (i.e., from Ceres.)
+   */
+  std::shared_ptr<ParameterBlockBase>
+  getStateByEstimatePointer(double *ptr) const;
+
+  /**
+   * @brief Retrieves the StateID for a state by its estimate pointer.
+   * This is also useful for getting an associated StateID when you have a
+   * pointer to its estimate.
+   *
+   * Returns false if the pointer is not found.
+   */
+  bool getStateIDByEstimatePointer(double *ptr, StateID &state_id) const;
+
+  /**
+   * @brief Clears all states from the collection.
+   */
+  void clear() {
+    time_varying_states_.clear();
+    static_states_.clear();
+  }
+
+  /**
+   * @brief Get the total number of states stored in the collection.
+   */
+  size_t size() const {
+    size_t total_size = static_states_.size();
+    for (const auto &pair : time_varying_states_) {
+      total_size += pair.second.size();
+    }
+    return total_size;
+  }
+
+  size_t getNumberOfStatesForType(const std::string &key) const {
+    auto it = time_varying_states_.find(key);
+    if (it != time_varying_states_.end()) {
+      return it->second.size();
+    }
+    return 0;
+  }
+
+  size_t staticSize() const { return static_states_.size(); }
+
 protected:
-  static constexpr double default_timestamp_precision = 1e-9;
-  double timestamp_precision_ = default_timestamp_precision;
-
-  int64_t timestampToKey(double timestamp) const {
-    return static_cast<int64_t>(std::round(timestamp / timestamp_precision_));
-  }
-
-  double keyToTimestamp(int64_t key) const {
-    return static_cast<double>(key) * timestamp_precision_;
-  }
-
-  // The states are stored in a map where the key corresponds to the name of the
-  // state, and the value is a map of timestamps to state pointers. This allows
-  // for retrieval of states
+  // Time-varying states stored as a map from string key to a map of timestamp
+  // to ParameterBlockBase pointers.
   std::unordered_map<std::string,
-                     std::map<int64_t, std::shared_ptr<ParameterBlockBase>>>
-      states_;
+                     std::map<double, std::shared_ptr<ParameterBlockBase>>>
+      time_varying_states_;
 
-  // Static states that do not change over time, accessible by a string key
-  // This is useful for parameters like landmarks in SLAM, or calibration
-  // parameters.
+  // Time-invariant states are stored in a separate map from
+  // string key to ParameterBlockBase pointers.
   std::unordered_map<std::string, std::shared_ptr<ParameterBlockBase>>
       static_states_;
 };

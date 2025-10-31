@@ -9,7 +9,7 @@ set(sources
     include/GPSIMUExampleUtils.h
 )
 
-# # Create executable
+# Create executable
 add_executable(gps_imu_example ${sources})
 target_include_directories(gps_imu_example PRIVATE include)
 

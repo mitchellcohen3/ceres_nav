@@ -29,8 +29,7 @@ struct ProblemKeys {
 };
 
 void addIMUState(
-    FactorGraph &graph, const IMUState &imu_state,
-    const LieDirection direction,
+    FactorGraph &graph, const IMUState &imu_state, const LieDirection direction,
     ExtendedPoseRepresentation state_rep = ExtendedPoseRepresentation::SE23,
     ProblemKeys keys = ProblemKeys()) {
   // Create a new ExtendedPoseParameterBlock for the IMU state
@@ -40,12 +39,13 @@ void addIMUState(
   std::shared_ptr<ParameterBlock<6>> bias_block =
       std::make_shared<ParameterBlock<6>>(imu_state.bias());
 
-  graph.addState(keys.nav_state_key, imu_state.timestamp(), nav_state_block);
-  graph.addState(keys.bias_state_key, imu_state.timestamp(), bias_block);
+  StateID nav_state_id(keys.nav_state_key, imu_state.timestamp());
+  StateID bias_state_id(keys.bias_state_key, imu_state.timestamp());
+  graph.addState(nav_state_id, nav_state_block);
+  graph.addState(bias_state_id, bias_block);
 };
 
-void addPriorFactor(FactorGraph &graph,
-                    const IMUState prior_imu_state,
+void addPriorFactor(FactorGraph &graph, const IMUState prior_imu_state,
                     const Eigen::Matrix<double, 15, 15> &prior_covariance,
                     LieDirection direction,
                     ExtendedPoseRepresentation state_rep, ProblemKeys keys) {
@@ -66,11 +66,10 @@ void addPreintegrationFactor(ceres_nav::FactorGraph &graph,
                              ProblemKeys keys = ProblemKeys()) {
   double start_stamp = imu_increment.start_stamp;
   double end_stamp = imu_increment.end_stamp;
-  std::vector<StateID> state_ids = {
-      StateID(keys.nav_state_key, start_stamp),
-      StateID(keys.bias_state_key, start_stamp),
-      StateID(keys.nav_state_key, end_stamp),
-      StateID(keys.bias_state_key, end_stamp)};
+  std::vector<StateID> state_ids = {StateID(keys.nav_state_key, start_stamp),
+                                    StateID(keys.bias_state_key, start_stamp),
+                                    StateID(keys.nav_state_key, end_stamp),
+                                    StateID(keys.bias_state_key, end_stamp)};
 
   auto *factor = new IMUPreintegrationFactor(imu_increment, false);
   graph.addFactor(state_ids, factor, start_stamp);
@@ -97,11 +96,11 @@ void addGPSFactor(
 IMUState getIMUState(ceres_nav::FactorGraph &graph, double timestamp,
                      ProblemKeys keys = ProblemKeys()) {
   std::shared_ptr<ExtendedPoseParameterBlock> nav_state =
-      graph.getStates().getState<ExtendedPoseParameterBlock>(keys.nav_state_key,
-                                                             timestamp);
+      graph.getStates().getState<ExtendedPoseParameterBlock>(
+          StateID(keys.nav_state_key, timestamp));
   std::shared_ptr<ParameterBlock<6>> bias =
-      graph.getStates().getState<ParameterBlock<6>>(keys.bias_state_key,
-                                                    timestamp);
+      graph.getStates().getState<ParameterBlock<6>>(
+          StateID(keys.bias_state_key, timestamp));
   if (!nav_state || !bias) {
     throw std::runtime_error("IMU state not found for timestamp: " +
                              std::to_string(timestamp));
@@ -115,8 +114,9 @@ Eigen::Matrix<double, 15, 15>
 computeIMUCovariance(ceres_nav::FactorGraph &graph, double timestamp,
                      ProblemKeys keys) {
   bool success_ext_pose =
-      graph.computeCovariance(keys.nav_state_key, timestamp);
-  bool success_bias = graph.computeCovariance(keys.bias_state_key, timestamp);
+      graph.computeCovariance(StateID(keys.nav_state_key, timestamp));
+  bool success_bias =
+      graph.computeCovariance(StateID(keys.bias_state_key, timestamp));
 
   if (!success_ext_pose || !success_bias) {
     return Eigen::Matrix<double, 15, 15>::Identity();
@@ -125,13 +125,13 @@ computeIMUCovariance(ceres_nav::FactorGraph &graph, double timestamp,
   // Assemble covariance and return
   Eigen::Matrix<double, 15, 15> covariance =
       Eigen::Matrix<double, 15, 15>::Zero();
-  covariance.block<9, 9>(0, 0) =
-      graph.getStates()
-          .getState<ExtendedPoseParameterBlock>(keys.nav_state_key, timestamp)
-          ->getCovariance();
+  covariance.block<9, 9>(0, 0) = graph.getStates()
+                                     .getState<ExtendedPoseParameterBlock>(
+                                         StateID(keys.nav_state_key, timestamp))
+                                     ->getCovariance();
   covariance.block<6, 6>(9, 9) =
       graph.getStates()
-          .getState<ParameterBlock<6>>(keys.bias_state_key, timestamp)
+          .getState<ParameterBlock<6>>(StateID(keys.bias_state_key, timestamp))
           ->getCovariance();
   return covariance;
 }
@@ -143,8 +143,8 @@ void marginalizeIMUState(ceres_nav::FactorGraph &graph, double timestamp_marg,
       StateID(keys.bias_state_key, timestamp_marg)};
 
   graph.marginalizeStates(state_ids_marg);
-  // FactorGraph::LastMarginalizationInfo marg_info = graph.getLastMarginalizationInfo();
-  // marg_info.print();
+  // FactorGraph::LastMarginalizationInfo marg_info =
+  // graph.getLastMarginalizationInfo(); marg_info.print();
 }
 
 } // namespace factor_graph_utils
