@@ -1,8 +1,8 @@
 #include "lib/FactorGraph.h"
 
-#include "lib/ParameterBlockBase.h"
 #include "lib/Covariance.h"
 #include "lib/Marginalization.h"
+#include "lib/ParameterBlockBase.h"
 
 #include "utils/VectorMath.h"
 #include "utils/VectorTypes.h"
@@ -232,6 +232,10 @@ bool FactorGraph::isConstant(const StateID &state_id) const {
 
 bool FactorGraph::computeCovariance(const StateID &state_id) {
   return calculateCovariance(problem_, states_, state_id);
+}
+
+bool FactorGraph::computeCovariance(const std::vector<StateID> &state_ids) {
+  return calculateCovariance(problem_, states_, state_ids);
 }
 
 bool FactorGraph::marginalizeStates(std::vector<StateID> states_m) {

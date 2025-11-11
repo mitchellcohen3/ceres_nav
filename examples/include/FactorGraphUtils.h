@@ -113,13 +113,13 @@ IMUState getIMUState(ceres_nav::FactorGraph &graph, double timestamp,
 Eigen::Matrix<double, 15, 15>
 computeIMUCovariance(ceres_nav::FactorGraph &graph, double timestamp,
                      ProblemKeys keys) {
-  bool success_ext_pose =
-      graph.computeCovariance(StateID(keys.nav_state_key, timestamp));
-  bool success_bias =
-      graph.computeCovariance(StateID(keys.bias_state_key, timestamp));
-
-  if (!success_ext_pose || !success_bias) {
-    return Eigen::Matrix<double, 15, 15>::Identity();
+  std::vector<StateID> state_ids = {StateID(keys.nav_state_key, timestamp),
+                                    StateID(keys.bias_state_key, timestamp)};
+  bool success = graph.computeCovariance(state_ids);
+  if (!success) {
+    LOG(ERROR) << "Failed to compute covariance for IMU state at timestamp: "
+               << timestamp;
+    return Eigen::Matrix<double, 15, 15>::Zero();
   }
 
   // Assemble covariance and return

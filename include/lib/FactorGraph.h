@@ -139,6 +139,7 @@ public:
    * a particular timestamp.
    */
   bool computeCovariance(const StateID &state_id);
+  bool computeCovariance(const std::vector<StateID> &state_ids); 
 
   /**
    * @brief Gets the marginalization information for a set of states.
