@@ -70,8 +70,8 @@ void runSlidingWindowEstimator(
     const std::vector<GPSMessage> &gps_data, const IMUState &init_imu_state,
     const Eigen::Matrix<double, 15, 15> &init_cov, LieDirection lie_direction,
     ExtendedPoseRepresentation state_rep,
-    const Eigen::Matrix<double, 12, 12> &Q_ct, const Eigen::Matrix3d &R_gps,
-    const Eigen::Vector3d &gravity, const std::string &est_imu_file,
+    std::shared_ptr<IMUIncrementOptions> preint_options,
+    const Eigen::Matrix3d &R_gps, const std::string &est_imu_file,
     const std::string &cov_file, int window_size) {
   ceres::Solver::Options options;
   options.max_num_iterations = 10;
@@ -85,14 +85,14 @@ void runSlidingWindowEstimator(
   factor_graph_utils::ProblemKeys keys;
 
   // Add the first IMU state to the graph and add a prior factor
-  factor_graph_utils::addIMUState(graph, init_imu_state, lie_direction, state_rep);
+  factor_graph_utils::addIMUState(graph, init_imu_state, lie_direction,
+                                  state_rep);
   factor_graph_utils::addPriorFactor(graph, init_imu_state, init_cov,
                                      lie_direction, state_rep, keys);
 
   // Create the initial IMU increment
-  IMUIncrement imu_increment(
-      Q_ct, init_imu_state.gyroBias(), init_imu_state.accelBias(),
-      init_imu_state.timestamp(), gravity, lie_direction, state_rep);
+  IMUIncrement imu_increment(preint_options, init_imu_state.gyroBias(),
+                             init_imu_state.accelBias());
   IMUState cur_imu_state = init_imu_state;
   double prev_gps_timestamp = gps_data[0].timestamp;
   std::vector<double> est_stamps;
@@ -114,12 +114,13 @@ void runSlidingWindowEstimator(
       imu_increment.propagate(dt, imu_data[imu_idx].gyro,
                               imu_data[imu_idx].accel);
       // Propagate IMU state and add to graph
-      propagateIMUState(cur_imu_state, imu_data[imu_idx], gravity, dt);
+      propagateIMUState(cur_imu_state, imu_data[imu_idx], preint_options->gravity, dt);
       imu_idx++;
     }
 
     // Add the new IMU state to the graph along with factors at the timestamp
-    factor_graph_utils::addIMUState(graph, cur_imu_state, lie_direction, state_rep, keys);
+    factor_graph_utils::addIMUState(graph, cur_imu_state, lie_direction,
+                                    state_rep, keys);
     factor_graph_utils::addPreintegrationFactor(graph, imu_increment,
                                                 lie_direction, state_rep, keys);
     factor_graph_utils::addGPSFactor(graph, gps_data[gps_index], lie_direction,
@@ -170,8 +171,8 @@ void runFullBatchEstimator(
     const std::vector<GPSMessage> &gps_data, const IMUState &init_imu_state,
     const Eigen::Matrix<double, 15, 15> &init_cov, LieDirection lie_direction,
     ExtendedPoseRepresentation state_rep,
-    const Eigen::Matrix<double, 12, 12> &Q_ct, const Eigen::Matrix3d &R_gps,
-    const Eigen::Vector3d &gravity, const std::string &est_imu_file,
+    std::shared_ptr<IMUIncrementOptions> preint_options,
+    const Eigen::Matrix3d &R_gps, const std::string &est_imu_file,
     const std::string &cov_file) {
 
   // Create the factor graph and problem keys
@@ -185,9 +186,9 @@ void runFullBatchEstimator(
 
   // Create the initial IMU increment
   size_t imu_idx = 0;
-  IMUIncrement imu_increment(
-      Q_ct, init_imu_state.gyroBias(), init_imu_state.accelBias(),
-      init_imu_state.timestamp(), gravity, lie_direction, state_rep);
+
+  IMUIncrement imu_increment(preint_options, init_imu_state.gyroBias(),
+                             init_imu_state.accelBias());
 
   IMUState cur_imu_state = init_imu_state;
   double prev_gps_timestamp = gps_data[0].timestamp;
@@ -209,12 +210,14 @@ void runFullBatchEstimator(
       imu_increment.propagate(dt, imu_data[imu_idx].gyro,
                               imu_data[imu_idx].accel);
       // Propagate IMU state and add to graph
-      propagateIMUState(cur_imu_state, imu_data[imu_idx], gravity, dt);
+      propagateIMUState(cur_imu_state, imu_data[imu_idx],
+                        preint_options->gravity, dt);
       imu_idx++;
     }
 
     // Add the new IMU state to the graph along with factors at the timestamp
-    factor_graph_utils::addIMUState(graph, cur_imu_state, lie_direction, state_rep, keys);
+    factor_graph_utils::addIMUState(graph, cur_imu_state, lie_direction,
+                                    state_rep, keys);
     factor_graph_utils::addPreintegrationFactor(graph, imu_increment,
                                                 lie_direction, state_rep, keys);
     factor_graph_utils::addGPSFactor(graph, gps_data[gps_index], lie_direction,
@@ -306,12 +309,6 @@ int main(int argc, const char **argv) {
   double sigma_gyro_rw = args["sigma_gyro_random_walk_continuous"].as<double>();
   double sigma_accel_rw =
       args["sigma_accel_random_walk_continuous"].as<double>();
-  Eigen::Matrix<double, 12, 12> Q_ct =
-      Eigen::Matrix<double, 12, 12>::Identity();
-  Q_ct.block<3, 3>(0, 0) *= sigma_gyro * sigma_gyro;
-  Q_ct.block<3, 3>(3, 3) *= sigma_accel * sigma_accel;
-  Q_ct.block<3, 3>(6, 6) *= sigma_gyro_rw * sigma_gyro_rw;
-  Q_ct.block<3, 3>(9, 9) *= sigma_accel_rw * sigma_accel_rw;
 
   double gravity_mag = args["gravity_mag"].as<double>();
   Eigen::Vector3d gravity = Eigen::Vector3d(0.0, 0.0, -gravity_mag);
@@ -330,6 +327,17 @@ int main(int argc, const char **argv) {
 
   LOG(INFO) << "Running estimator type: " << estimator_type;
 
+  // Create our preintegration options
+  std::shared_ptr<IMUIncrementOptions> preint_options =
+      std::make_shared<IMUIncrementOptions>();
+  preint_options->sigma_gyro_ct = sigma_gyro;
+  preint_options->sigma_accel_ct = sigma_accel;
+  preint_options->sigma_gyro_bias_ct = sigma_gyro_rw;
+  preint_options->sigma_accel_bias_ct = sigma_accel_rw;
+  preint_options->gravity = gravity;
+  preint_options->direction = lie_direction;
+  preint_options->pose_rep = state_rep;
+
   // Create output files
   std::string output_dir = args["output_dir"].as<std::string>();
   std::string est_imu_states_file = output_dir + "/optimized_imu_states.txt";
@@ -342,13 +350,13 @@ int main(int argc, const char **argv) {
       Eigen::Matrix<double, 15, 15>::Identity() * 1e-6; // Small covariance
   if (estimator_type == "full_batch") {
     runFullBatchEstimator(imu_data, gps_data, init_imu_state, init_cov,
-                          lie_direction, state_rep, Q_ct, R_gps, gravity,
+                          lie_direction, state_rep, preint_options, R_gps,
                           est_imu_states_file, cov_file);
   } else {
     int sliding_window_size = args["sliding_window_size"].as<int>();
     LOG(INFO) << "Using sliding window size: " << sliding_window_size;
     runSlidingWindowEstimator(imu_data, gps_data, init_imu_state, init_cov,
-                              lie_direction, state_rep, Q_ct, R_gps, gravity,
+                              lie_direction, state_rep, preint_options, R_gps,
                               est_imu_states_file, cov_file,
                               sliding_window_size);
   }

@@ -113,12 +113,16 @@ TEST_CASE("Test MarkovBlanketInfo") {
   factor_graph.addState(b1_id, b1);
 
   // Create and add IMU preintegration factor between X0, b0 and X1, b1
-  IMUIncrement rmi0(Eigen::Matrix<double, 12, 12>::Identity(),
-                    Eigen::Vector3d::Zero(), Eigen::Vector3d::Zero(), 0.0,
-                    Eigen::Vector3d(0, 0, -9.81), LieDirection::right);
-  IMUIncrement rmi1(Eigen::Matrix<double, 12, 12>::Identity(),
-                    Eigen::Vector3d::Zero(), Eigen::Vector3d::Zero(), 1.0,
-                    Eigen::Vector3d(0, 0, -9.81), LieDirection::right);
+  std::shared_ptr<IMUIncrementOptions> preint_options = std::make_shared<
+      IMUIncrementOptions>();
+  preint_options->sigma_gyro_ct = 0.01;
+  preint_options->sigma_accel_ct = 0.1;
+  preint_options->sigma_gyro_bias_ct = 0.001;
+  preint_options->sigma_accel_bias_ct = 0.001;
+  IMUIncrement rmi0(preint_options, Eigen::Vector3d::Zero(),
+                    Eigen::Vector3d::Zero());
+  IMUIncrement rmi1(preint_options, Eigen::Vector3d::Zero(),
+                    Eigen::Vector3d::Zero());
 
   ceres::CostFunction *preintegration_factor =
       new IMUPreintegrationFactor(rmi0, false);

@@ -446,6 +446,7 @@ if __name__ == "__main__":
 
     config.lie_direction = "left" # left or right
     config.state_representation = "SE23" # SE23 or decoupled
+    config.estimator_type = "sliding_window" # sliding_window or full_batch
 
     # Generate data an run the example
     data_fpaths = generate_and_save_data(config, save_dir)

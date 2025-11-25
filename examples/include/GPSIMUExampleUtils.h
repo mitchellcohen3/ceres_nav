@@ -7,8 +7,8 @@
 #include <fstream>
 #include <sstream>
 
+#include "imu/IMUIncrement.h"
 #include "lie/SE23.h"
-#include "imu/IMUHelper.h"
 
 #include <glog/logging.h>
 
@@ -70,9 +70,7 @@ public:
     nav_state_ = nav_state;
   }
 
-  void setStamp(double stamp) {
-    timestamp_ = stamp;
-  }
+  void setStamp(double stamp) { timestamp_ = stamp; }
 
   Eigen::Matrix<double, 17, 1> toVector() const {
     Eigen::Matrix<double, 17, 1> vec;
@@ -228,17 +226,24 @@ std::vector<IMUState> loadIMUStates(const std::string &fname) {
 
 /**
  * @brief propagates and IMU state forward using the IMU measurements.
-*/
-void propagateIMUState(IMUState &state, const IMUMessage &imu_msg, const Eigen::Vector3d &gravity, double dt) {
+ */
+void propagateIMUState(IMUState &state, const IMUMessage &imu_msg,
+                       const Eigen::Vector3d &gravity, double dt) {
   Eigen::Vector3d unbiased_gyro = imu_msg.gyro - state.gyroBias();
   Eigen::Vector3d unbiased_accel = imu_msg.accel - state.accelBias();
 
-  Eigen::Matrix<double, 5, 5> G = ceres_nav::createGMatrix(gravity, dt);
-  Eigen::Matrix<double, 5, 5> U =
-      ceres_nav::createUMatrix(unbiased_gyro, unbiased_accel, dt);
+  Eigen::Matrix<double, 5, 5> T_k = state.navState();
 
-  Eigen::Matrix<double, 5, 5> prev_extended_pose = state.navState();
-  Eigen::Matrix<double, 5, 5> next_extended_pose = G * prev_extended_pose * U;
+  // Propagation written as the product of three SE_2(3) matrices: Gamma_k * Phi
+  // (T_k) * Upsilon_k
+  Eigen::Matrix<double, 5, 5> Gamma_k = Eigen::Matrix<double, 5, 5>::Identity();
+  Gamma_k.block<3, 1>(0, 3) = dt * gravity;
+  Gamma_k.block<3, 1>(0, 4) = 0.5 * dt * dt * gravity;
+
+  Eigen::Matrix<double, 5, 5> Phi_k = ceres_nav::phiMat(dt, T_k);
+  Eigen::Matrix<double, 5, 5> Upsilon_k = ceres_nav::upsilonMat(
+      dt, unbiased_gyro, unbiased_accel, ceres_nav::IMUDiscretizationMethod::ConstantMeas);
+  Eigen::Matrix<double, 5, 5> next_extended_pose = Gamma_k * Phi_k * Upsilon_k;
 
   double new_stamp = state.timestamp() + dt;
   state.setStamp(new_stamp);

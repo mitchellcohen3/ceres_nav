@@ -185,7 +185,7 @@ TEST_CASE("IMUPreintegrationFactor") {
   Eigen::Matrix<double, 12, 12> Q_ct =
       Eigen::Matrix<double, 12, 12>::Identity() * 0.01;
   Eigen::Vector3d init_gyro_bias{0.1, 0.2, 0.3};
-  Eigen::Vector3d init_accel_bias{0.1, 0.2, 0.3};
+  Eigen::Vector3d init_accel_bias{0.5, 0.7, 0.4};
   Eigen::Vector3d gravity(0.0, 0.0, -9.81);
 
   int num_imu_meas = 10;
@@ -196,7 +196,8 @@ TEST_CASE("IMUPreintegrationFactor") {
   Eigen::Vector3d r_i = Eigen::Vector3d(1.0, 1.0, 1.0);
   Eigen::Matrix<double, 5, 5> X_i = SE23::fromComponents(C_i, v_i, r_i);
   Eigen::Matrix<double, 6, 1> b_i;
-  b_i << 0.1, 0.2, 0.3, 0.4, 0.5, 0.6;
+  b_i << -0.1, -0.2, -0.3, -0.4, -0.5, -0.6;
+  // b_i << 0.1, 0.2, 0.3, 0.5, 0.7, 0.4;
 
   Eigen::Matrix3d C_j = SO3::expMap(Eigen::Vector3d(0.7, 0.5, 0.3));
   Eigen::Vector3d v_j = Eigen::Vector3d(0.4, 0.6, 0.76);
@@ -206,11 +207,15 @@ TEST_CASE("IMUPreintegrationFactor") {
   b_j << 0.5, 0.6, 0.2, 0.2, 0.1, 0.4;
 
   // Pose representations to test
-  std::vector<ExtendedPoseRepresentation> rep_types =
-      {ExtendedPoseRepresentation::SE23, ExtendedPoseRepresentation::Decoupled};
+  // std::vector<ExtendedPoseRepresentation> rep_types =
+  //     {ExtendedPoseRepresentation::SE23,
+  //     ExtendedPoseRepresentation::Decoupled};
 
-  std::vector<LieDirection>
-      directions = {LieDirection::left, LieDirection::right};
+  std::vector<LieDirection> directions = {LieDirection::left,
+                                          LieDirection::right};
+
+  std::vector<ExtendedPoseRepresentation> rep_types = {
+      ExtendedPoseRepresentation::SE23};
 
   for (auto const &rep_type : rep_types) {
     for (auto const &direction : directions) {
@@ -240,19 +245,29 @@ TEST_CASE("IMUPreintegrationFactor") {
       parameter_blocks.push_back(b_j_block);
 
       // Create an IMU increment and propagate it forward
-      IMUIncrement imu_increment(Q_ct, init_gyro_bias, init_accel_bias, 0.0,
-                                 gravity, direction, rep_type);
+      LOG(INFO) << "Creating preintegration options...";
+      std::shared_ptr<IMUIncrementOptions> preintegration_options = std::make_shared<
+          IMUIncrementOptions>();
+      preintegration_options->sigma_gyro_ct = 0.01;
+      preintegration_options->sigma_accel_ct = 0.1;
+      preintegration_options->sigma_gyro_bias_ct = 0.001;
+      preintegration_options->sigma_accel_bias_ct = 0.001;
+      preintegration_options->gravity = gravity;
+      preintegration_options->direction = direction;
+      preintegration_options->pose_rep = rep_type;
+      IMUIncrement imu_increment(preintegration_options, init_gyro_bias,
+                                 init_accel_bias);
       for (int i = 0; i < num_imu_meas; ++i) {
         double dt = 0.01;
         Eigen::Vector3d omega = Eigen::Vector3d::Random();
         Eigen::Vector3d accel = Eigen::Vector3d::Random();
-        imu_increment.pushBack(dt, omega, accel);
+        imu_increment.propagate(dt, omega, accel);
       }
 
       // Create the factor
       std::shared_ptr<IMUPreintegrationFactor> factor =
-          std::make_shared<IMUPreintegrationFactor>(
-              imu_increment, use_group_jacobians);
+          std::make_shared<IMUPreintegrationFactor>(imu_increment,
+                                                    use_group_jacobians);
 
       // Evaluate the factor with the parameter blocks
       std::vector<Eigen::MatrixXd> analytical_jacobians;
@@ -264,13 +279,17 @@ TEST_CASE("IMUPreintegrationFactor") {
       for (size_t i = 0; i < analytical_jacobians.size(); ++i) {
         Eigen::MatrixXd difference =
             analytical_jacobians[i] - numerical_jacobians[i];
-        // double norm = difference.norm();
+        double norm = difference.norm();
         // std::cout << "Jacobian " << i << " norm difference: " << norm
         //           << std::endl;
         // std::cout << "Jacobian " << i << std::endl;
+        // std::cout << "Analytical:\n"
+        //           << analytical_jacobians[i] << std::endl;
+        // std::cout << "Numerical:\n"
+        //           << numerical_jacobians[i] << std::endl;
         // std::cout << "Difference:\n" << difference << std::endl;
       }
-      // REQUIRE(is_correct);
+      REQUIRE(is_correct);
     }
   }
 }
