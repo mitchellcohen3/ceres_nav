@@ -46,7 +46,6 @@ list(
     src/lie/SO3.cpp
 
     src/imu/IMUIncrement.cpp
-    src/imu/IMUHelper.cpp
     src/imu/IMUPreintegrationHelper.cpp
 
     src/utils/Utils.cpp

@@ -66,16 +66,23 @@ public:
                              const IMUStateHolder &X_j) const;
 
   // Gets the covariance of the preintegrated measurement
-  Eigen::Matrix<double, 15, 15> covariance() const { return rmi.covariance; }
+  Eigen::Matrix<double, 15, 15> covariance() const { return rmi.covariance(); }
 
-  double startStamp() const { return rmi.start_stamp; }
-  double endStamp() const { return rmi.end_stamp; }
+  double startStamp() const { return rmi.startTime(); }
+  double endStamp() const { return rmi.endTime(); }
 
 private:
   const IMUIncrement rmi;
   bool use_group_jacobians;
   LieDirection direction;
   ExtendedPoseRepresentation pose_rep;
+
+  // Helper functions to compute matrices used in Jacobian calculations
+  Eigen::Matrix<double, 5, 5>
+  computePhiMatrix(const Eigen::Matrix<double, 5, 5> &T, double dt) const;
+  Eigen::Matrix<double, 9, 9> computeFMatrix(double dt) const;
+  Eigen::Matrix<double, 5, 5>
+  computeGammaMatrix(double dt, const Eigen::Vector3d &gravity) const;
 };
 
 } // namespace ceres_nav

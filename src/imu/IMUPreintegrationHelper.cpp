@@ -5,7 +5,8 @@ namespace ceres_nav {
 IMUPreintegrationHelper::IMUPreintegrationHelper(
     const IMUIncrement &imu_increment, bool use_group_jacobians_)
     : rmi{imu_increment}, use_group_jacobians{use_group_jacobians_},
-      direction{imu_increment.direction}, pose_rep{imu_increment.pose_rep} {}
+      direction{imu_increment.options()->direction},
+      pose_rep{imu_increment.options()->pose_rep} {}
 
 Eigen::Matrix<double, 15, 1>
 IMUPreintegrationHelper::computePreintegrationError(
@@ -48,23 +49,19 @@ IMUPreintegrationHelper::computePreintegrationError(
 Eigen::Matrix<double, 5, 5>
 IMUPreintegrationHelper::getUpdatedRMI(const IMUStateHolder &X_i) const {
   Eigen::Matrix<double, 6, 1> dbias;
-  Eigen::Vector3d d_bg = X_i.bias_gyro - rmi.gyro_bias;
-  Eigen::Vector3d d_ba = X_i.bias_accel - rmi.accel_bias;
+  Eigen::Vector3d d_bg = X_i.bias_gyro - rmi.gyroBias();
+  Eigen::Vector3d d_ba = X_i.bias_accel - rmi.accelBias();
   dbias.block<3, 1>(0, 0) = d_bg;
   dbias.block<3, 1>(3, 0) = d_ba;
 
-  Eigen::Matrix<double, 5, 5> delta_X = Eigen::Matrix<double, 5, 5>::Identity();
-  delta_X.block<3, 3>(0, 0) = rmi.delta_U.block<3, 3>(0, 0);
-  delta_X.block<3, 1>(0, 3) = rmi.delta_U.block<3, 1>(0, 3);
-  delta_X.block<3, 1>(0, 4) = rmi.delta_U.block<3, 1>(0, 4);
-
+  Eigen::Matrix<double, 5, 5> delta_X = rmi.meanRMI();
   // If we're using an SE_2(3) representation, perform first-order
   // bias correct directly on the group
   if (pose_rep == ExtendedPoseRepresentation::SE23) {
     if (direction == LieDirection::left) {
-      return SE23::expMap(rmi.bias_jacobian * dbias) * delta_X;
+      return SE23::expMap(rmi.biasJacobian() * dbias) * delta_X;
     } else if (direction == LieDirection::right) {
-      return delta_X * SE23::expMap(rmi.bias_jacobian * dbias);
+      return delta_X * SE23::expMap(rmi.biasJacobian() * dbias);
     } else {
       std::cout << "WARNING: Unknown Lie direction!" << std::endl;
       return Eigen::Matrix<double, 5, 5>::Identity();
@@ -82,11 +79,11 @@ IMUPreintegrationHelper::getUpdatedRMI(const IMUStateHolder &X_i) const {
     Eigen::Vector3d delta_r = delta_X.block<3, 1>(0, 4);
 
     // Extract relevant parts of the bias Jacobian
-    Eigen::Matrix3d dC_dbg = rmi.bias_jacobian.block<3, 3>(0, 0);
+    Eigen::Matrix<double, 9, 6> bias_jacobian = rmi.biasJacobian();
+    Eigen::Matrix3d dC_dbg = bias_jacobian.block<3, 3>(0, 0);
 
-    Eigen::Matrix<double, 3, 6> dv_db = rmi.bias_jacobian.block<3, 6>(3, 0);
-    Eigen::Matrix<double, 3, 6> dr_db = rmi.bias_jacobian.block<3, 6>(6, 0);
-
+    Eigen::Matrix<double, 3, 6> dv_db = bias_jacobian.block<3, 6>(3, 0);
+    Eigen::Matrix<double, 3, 6> dr_db = bias_jacobian.block<3, 6>(6, 0);
     Eigen::Vector3d delta_v_updated = delta_v + dv_db * dbias;
     Eigen::Vector3d delta_r_updated = delta_r + dr_db * dbias;
 
@@ -116,7 +113,7 @@ IMUPreintegrationHelper::getUpdatedRMI(const IMUStateHolder &X_i) const {
 Eigen::Matrix<double, 5, 5>
 IMUPreintegrationHelper::predictNavRMI(const IMUStateHolder &X_i,
                                        const IMUStateHolder &X_j) const {
-  Eigen::Vector3d g_a = rmi.gravity;
+  Eigen::Vector3d g_a = rmi.options()->gravity;
   Eigen::Matrix3d C_i = X_i.attitude;
   Eigen::Vector3d v_i = X_i.velocity;
   Eigen::Vector3d r_i = X_i.position;
@@ -125,7 +122,7 @@ IMUPreintegrationHelper::predictNavRMI(const IMUStateHolder &X_i,
   Eigen::Vector3d v_j = X_j.velocity;
   Eigen::Vector3d r_j = X_j.position;
 
-  double delta_t = rmi.end_stamp - rmi.start_stamp;
+  double delta_t = rmi.deltaT();
   Eigen::Matrix3d delta_C = C_i.transpose() * C_j;
   Eigen::Vector3d delta_v = C_i.transpose() * (v_j - v_i - g_a * delta_t);
   Eigen::Vector3d delta_r = C_i.transpose() * (r_j - r_i - v_i * delta_t -
@@ -161,89 +158,75 @@ IMUPreintegrationHelper::computeRawJacobians(const IMUStateHolder &X_i,
       return std::vector<Eigen::Matrix<double, 15, 15>>();
     }
   }
+
+  return std::vector<Eigen::Matrix<double, 15, 15>>();
 }
 
 std::vector<Eigen::Matrix<double, 15, 15>>
 IMUPreintegrationHelper::computeRawJacobiansLeftSE23(
     const IMUStateHolder &X_i, const IMUStateHolder &X_j) const {
   // Extract individual states
-  Eigen::Vector3d g_a = rmi.gravity;
-  Eigen::Matrix3d C_i = X_i.attitude;
-  Eigen::Vector3d v_i = X_i.velocity;
-  Eigen::Vector3d r_i = X_i.position;
+  Eigen::Vector3d g_a = rmi.options()->gravity;
   Eigen::Vector3d ba_i = X_i.bias_accel;
+  double delta_t = rmi.deltaT();
 
-  Eigen::Vector3d v_j = X_j.velocity;
-  Eigen::Vector3d r_j = X_j.position;
+  // Compute Jacobian of \Delta_X with respect to X_i
+  Eigen::Matrix<double, 15, 15> D_deltaX_D_Xi =
+      Eigen::Matrix<double, 15, 15>::Zero();
+  Eigen::Matrix<double, 5, 5> T_i = Eigen::Matrix<double, 5, 5>::Identity();
+  T_i.block<3, 3>(0, 0) = X_i.attitude;
+  T_i.block<3, 1>(0, 3) = X_i.velocity;
+  T_i.block<3, 1>(0, 4) = X_i.position;
 
-  Eigen::Matrix<double, 5, 5> del_Xy_mat = getUpdatedRMI(X_i);
-  Eigen::Matrix<double, 5, 5> del_Xx_mat = predictNavRMI(X_i, X_j);
-
-  // Extract required subcomponents of matrix
-  Eigen::Matrix<double, 3, 1> del_Xx_v = del_Xx_mat.block<3, 1>(0, 3);
-  Eigen::Matrix<double, 3, 1> del_Xx_r = del_Xx_mat.block<3, 1>(0, 4);
-  double delta_t = rmi.end_stamp - rmi.start_stamp;
+  Eigen::Matrix<double, 5, 5> Phi_Ti_inv =
+      SE23::inverse(computePhiMatrix(T_i, delta_t));
+  Eigen::Matrix<double, 9, 9> d_Upsilon_dTi =
+      -SE23::adjoint(Phi_Ti_inv) * computeFMatrix(delta_t);
 
   // Jacobian of \Delta X^X with respect to X_i
-  Eigen::Matrix<double, 15, 15> D_delta_xx_Xi =
+  D_deltaX_D_Xi.block<9, 9>(0, 0) = d_Upsilon_dTi;
+  D_deltaX_D_Xi.block<6, 6>(9, 9) = -Eigen::Matrix<double, 6, 6>::Identity();
+
+  // Jacobian of \Delta X_hat with respect to X_i (due to bias update)
+  Eigen::Matrix<double, 15, 15> D_deltaXhat_D_Xi =
       Eigen::Matrix<double, 15, 15>::Zero();
-  D_delta_xx_Xi.block<3, 3>(0, 0) = -C_i.transpose();
-  D_delta_xx_Xi.block<3, 3>(3, 0) = C_i.transpose() * SO3::cross(v_i);
-  D_delta_xx_Xi.block<3, 3>(3, 3) = -C_i.transpose();
-  D_delta_xx_Xi.block<3, 3>(6, 0) =
-      C_i.transpose() * SO3::cross(r_i + v_i * delta_t);
-  D_delta_xx_Xi.block<3, 3>(6, 3) = -delta_t * C_i.transpose();
-  D_delta_xx_Xi.block<3, 3>(6, 6) = -C_i.transpose();
-  D_delta_xx_Xi.block<6, 6>(9, 9) = -Eigen::Matrix<double, 6, 6>::Identity();
-
-  // Compute Jacobian of error w.r.t del_Xy
   Eigen::Matrix<double, 6, 1> dbias;
-  dbias.block<3, 1>(0, 0) = X_i.bias_gyro - rmi.gyro_bias;
-  dbias.block<3, 1>(3, 0) = X_i.bias_accel - rmi.accel_bias;
-  Eigen::Matrix<double, 9, 6> bias_jac = rmi.bias_jacobian;
+  dbias.block<3, 1>(0, 0) = X_i.bias_gyro - rmi.gyroBias();
+  dbias.block<3, 1>(3, 0) = X_i.bias_accel - rmi.accelBias();
+  Eigen::Matrix<double, 9, 6> bias_jac = rmi.biasJacobian();
   Eigen::Matrix<double, 9, 1> tau = bias_jac * dbias;
-
   Eigen::Matrix<double, 9, 6> Ji_X_b =
       SE23::leftJacobian(bias_jac * dbias) * bias_jac;
-  Eigen::Matrix<double, 15, 15> xi_i_y = Eigen::Matrix<double, 15, 15>::Zero();
-  xi_i_y.block<9, 6>(0, 9) = Ji_X_b;
+  D_deltaXhat_D_Xi.block<9, 6>(0, 9) = Ji_X_b;
 
   // If we want to include the group jacobians, need to compute
   // the Jacobian of the error with respect to the delta_X^Y
   // and delta_X^X
-  Eigen::Matrix<double, 15, 15> De_D_delta_xy =
+  Eigen::Matrix<double, 15, 15> De_D_delta_Xhat =
       -Eigen::Matrix<double, 15, 15>::Identity();
-  Eigen::Matrix<double, 15, 15> De_D_delta_xx =
+  Eigen::Matrix<double, 15, 15> De_D_delta_X =
       Eigen::Matrix<double, 15, 15>::Identity();
 
   if (use_group_jacobians) {
+    LOG(INFO) << "Using group Jacobians!";
     Eigen::Matrix<double, 15, 1> error = computePreintegrationError(X_i, X_j);
     Eigen::Matrix<double, 9, 1> e_nav = error.block<9, 1>(0, 0);
 
-    De_D_delta_xx.block<9, 9>(0, 0) = SE23::leftJacobianInverse(e_nav);
-    De_D_delta_xy.block<9, 9>(0, 0) = -SE23::rightJacobianInverse(e_nav);
+    De_D_delta_X.block<9, 9>(0, 0) = SE23::leftJacobianInverse(e_nav);
+    De_D_delta_Xhat.block<9, 9>(0, 0) = -SE23::rightJacobianInverse(e_nav);
   }
 
   Eigen::Matrix<double, 15, 15> jac_i =
-      De_D_delta_xy * xi_i_y + De_D_delta_xx * D_delta_xx_Xi;
+      De_D_delta_X * D_deltaX_D_Xi + De_D_delta_Xhat * D_deltaXhat_D_Xi;
 
   // Compute Jacobians of error w.r.t X_j
-  Eigen::Matrix3d Jj_C_C = C_i.transpose();
-  Eigen::Matrix3d Jj_v_C = -C_i.transpose() * SO3::cross(v_j) +
-                           SO3::cross(del_Xx_v) * C_i.transpose();
-  Eigen::Matrix3d Jj_v_v = C_i.transpose();
-  Eigen::Matrix3d Jj_r_C = -C_i.transpose() * SO3::cross(r_j) +
-                           SO3::cross(del_Xx_r) * C_i.transpose();
-  Eigen::Matrix3d Jj_r_r = C_i.transpose();
-  // Jacobian of \Delta X^X with respect to X_j
-  Eigen::Matrix<double, 15, 15> xi_j_x = Eigen::Matrix<double, 15, 15>::Zero();
-  xi_j_x.block<3, 3>(0, 0) = Jj_C_C;
-  xi_j_x.block<3, 3>(3, 0) = Jj_v_C;
-  xi_j_x.block<3, 3>(3, 3) = Jj_v_v;
-  xi_j_x.block<3, 3>(6, 0) = Jj_r_C;
-  xi_j_x.block<3, 3>(6, 6) = Jj_r_r;
-  xi_j_x.block<6, 6>(9, 9) = Eigen::Matrix<double, 6, 6>::Identity();
-  Eigen::Matrix<double, 15, 15> jac_j = De_D_delta_xx * xi_j_x;
+  Eigen::Matrix<double, 15, 15> D_deltaX_D_Xj =
+      Eigen::Matrix<double, 15, 15>::Zero();
+  Eigen::Matrix<double, 5, 5> gammaInv =
+      SE23::inverse(computeGammaMatrix(delta_t, g_a));
+  D_deltaX_D_Xj.block<9, 9>(0, 0) = SE23::adjoint(Phi_Ti_inv * gammaInv);
+  D_deltaX_D_Xj.block<6, 6>(9, 9) = Eigen::Matrix<double, 6, 6>::Identity();
+  Eigen::Matrix<double, 15, 15> jac_j = De_D_delta_X * D_deltaX_D_Xj;
 
   std::vector<Eigen::Matrix<double, 15, 15>> raw_jacobians;
   raw_jacobians.push_back(jac_i);
@@ -254,54 +237,45 @@ IMUPreintegrationHelper::computeRawJacobiansLeftSE23(
 std::vector<Eigen::Matrix<double, 15, 15>>
 IMUPreintegrationHelper::computeRawJacobiansRightSE23(
     const IMUStateHolder &X_i, const IMUStateHolder &X_j) const {
-  Eigen::Matrix<double, 5, 5> del_Xx_mat = predictNavRMI(X_i, X_j);
+  Eigen::Matrix<double, 5, 5> Upsilon_ij_bar = predictNavRMI(X_i, X_j);
 
-  // Extract required subcomponents of matrix
-  Eigen::Matrix3d del_Xx_C = del_Xx_mat.block<3, 3>(0, 0);
-  Eigen::Vector3d del_Xx_v = del_Xx_mat.block<3, 1>(0, 3);
-  Eigen::Vector3d del_Xx_r = del_Xx_mat.block<3, 1>(0, 4);
-  double delta_t = rmi.end_stamp - rmi.start_stamp;
+  double dt = rmi.deltaT();
+  Eigen::Matrix<double, 15, 15> D_deltaX_D_Xi =
+      Eigen::Matrix<double, 15, 15>::Zero();
+  D_deltaX_D_Xi.block<9, 9>(0, 0) =
+      -SE23::adjoint(SE23::inverse(Upsilon_ij_bar)) * computeFMatrix(dt);
+  D_deltaX_D_Xi.block<6, 6>(9, 9) = -Eigen::Matrix<double, 6, 6>::Identity();
 
-  // Compute Jacobian of \Delta_X^X with respect to X_i
-  Eigen::Matrix<double, 15, 15> xi_i_x = Eigen::Matrix<double, 15, 15>::Zero();
-  xi_i_x.block<3, 3>(0, 0) = -del_Xx_C.transpose();
-  xi_i_x.block<3, 3>(3, 0) = del_Xx_C.transpose() * SO3::cross(del_Xx_v);
-  xi_i_x.block<3, 3>(3, 3) = -del_Xx_C.transpose();
-  xi_i_x.block<3, 3>(6, 0) = del_Xx_C.transpose() * SO3::cross(del_Xx_r);
-  xi_i_x.block<3, 3>(6, 3) = -delta_t * del_Xx_C.transpose();
-  xi_i_x.block<3, 3>(6, 6) = -del_Xx_C.transpose();
-  xi_i_x.block<6, 6>(9, 9) = -Eigen::Matrix<double, 6, 6>::Identity();
-
-  // Compute Jacobian of error with respect to \Delta X^Y
+  // Jacobian of \Delta_X_hat with respect to X_i (due to bias update)
+  Eigen::Matrix<double, 15, 15> D_deltaXhat_D_Xi =
+      Eigen::Matrix<double, 15, 15>::Zero();
   Eigen::Matrix<double, 6, 1> dbias;
-  dbias.block<3, 1>(0, 0) = X_i.bias_gyro - rmi.gyro_bias;
-  dbias.block<3, 1>(3, 0) = X_i.bias_accel - rmi.accel_bias;
-  Eigen::Matrix<double, 9, 6> bias_jac = rmi.bias_jacobian;
+  dbias.block<3, 1>(0, 0) = X_i.bias_gyro - rmi.gyroBias();
+  dbias.block<3, 1>(3, 0) = X_i.bias_accel - rmi.accelBias();
+  Eigen::Matrix<double, 9, 6> bias_jac = rmi.biasJacobian();
   Eigen::Matrix<double, 9, 1> tau = bias_jac * dbias;
-  Eigen::Matrix<double, 9, 6> Ji_X_b = SE23::rightJacobian(tau) * bias_jac;
-
-  Eigen::Matrix<double, 15, 15> xi_i_y = Eigen::Matrix<double, 15, 15>::Zero();
-  xi_i_y.block<9, 6>(0, 9) = Ji_X_b;
+  D_deltaXhat_D_Xi.block<9, 6>(0, 9) = SE23::rightJacobian(tau) * bias_jac;
 
   // Jacobian of \Delta X^X with respect to X_j
-  Eigen::Matrix<double, 15, 15> jac_j =
+  Eigen::Matrix<double, 15, 15> D_deltaX_DXj =
       Eigen::Matrix<double, 15, 15>::Identity();
 
-  Eigen::Matrix<double, 15, 15> De_D_delta_xy =
-      -Eigen::Matrix<double, 15, 15>::Identity();
-  Eigen::Matrix<double, 15, 15> De_D_delta_xx =
+  // Jacobians of errors with respect to RMI
+  Eigen::Matrix<double, 15, 15> De_D_DeltaX =
+      Eigen::Matrix<double, 15, 15>::Identity();
+  Eigen::Matrix<double, 15, 15> De_D_DeltaXhat =
       Eigen::Matrix<double, 15, 15>::Identity();
 
   if (use_group_jacobians) {
     Eigen::Matrix<double, 15, 1> error = computePreintegrationError(X_i, X_j);
     Eigen::Matrix<double, 9, 1> e_nav = error.block<9, 1>(0, 0);
-    De_D_delta_xy.block<9, 9>(0, 0) = -SE23::leftJacobianInverse(e_nav);
-    De_D_delta_xx.block<9, 9>(0, 0) = SE23::rightJacobianInverse(e_nav);
+    De_D_DeltaXhat.block<9, 9>(0, 0) = -SE23::leftJacobianInverse(e_nav);
+    De_D_DeltaX.block<9, 9>(0, 0) = SE23::rightJacobianInverse(e_nav);
   }
 
   Eigen::Matrix<double, 15, 15> jac_i =
-      De_D_delta_xy * xi_i_y + De_D_delta_xx * xi_i_x;
-  jac_j = De_D_delta_xx * jac_j;
+      De_D_DeltaX * D_deltaX_D_Xi + De_D_DeltaXhat * D_deltaXhat_D_Xi;
+  Eigen::Matrix<double, 15, 15> jac_j = De_D_DeltaX * D_deltaX_DXj;
 
   std::vector<Eigen::Matrix<double, 15, 15>> raw_jacobians;
   raw_jacobians.push_back(jac_i);
@@ -318,7 +292,7 @@ IMUPreintegrationHelper::computeRawJacobiansRightDecoupled(
   Eigen::Matrix3d del_Xx_C = del_Xx_mat.block<3, 3>(0, 0);
   Eigen::Vector3d del_Xx_v = del_Xx_mat.block<3, 1>(0, 3);
   Eigen::Vector3d del_Xx_r = del_Xx_mat.block<3, 1>(0, 4);
-  double delta_t = rmi.end_stamp - rmi.start_stamp;
+  double delta_t = rmi.deltaT();
 
   Eigen::Matrix3d C_i = X_i.attitude;
 
@@ -335,10 +309,11 @@ IMUPreintegrationHelper::computeRawJacobiansRightDecoupled(
 
   // Compute Jacobian of \Delta_X^Y with respect to X_i
   // We need the bias Jacobian here
-  Eigen::Matrix<double, 9, 6> bias_jac = rmi.bias_jacobian;
-
   Eigen::Matrix<double, 15, 15> D_delta_xy_Xi =
       Eigen::Matrix<double, 15, 15>::Zero();
+  Eigen::Matrix<double, 9, 9> right_jac_part =
+      Eigen::Matrix<double, 9, 9>::Zero();
+  Eigen::Matrix<double, 9, 6> bias_jac = rmi.biasJacobian();
   D_delta_xy_Xi.block<9, 6>(0, 9) = bias_jac;
 
   // Compute Jacobian of \Delta X^X with respect to X_j
@@ -369,6 +344,35 @@ IMUPreintegrationHelper::computeRawJacobiansRightDecoupled(
   raw_jacobians.push_back(jac_i);
   raw_jacobians.push_back(jac_j);
   return raw_jacobians;
+}
+
+Eigen::Matrix<double, 5, 5>
+IMUPreintegrationHelper::computePhiMatrix(const Eigen::Matrix<double, 5, 5> &T,
+                                          double dt) const {
+  Eigen::Matrix<double, 5, 5> Phi = Eigen::Matrix<double, 5, 5>::Identity();
+
+  Eigen::Vector3d v = T.block<3, 1>(0, 3);
+  Eigen::Vector3d r = T.block<3, 1>(0, 4);
+
+  Phi.block<3, 3>(0, 0) = T.block<3, 3>(0, 0);
+  Phi.block<3, 1>(0, 3) = T.block<3, 1>(0, 3);
+  Phi.block<3, 1>(0, 4) = r + dt * v;
+  return Phi;
+}
+
+Eigen::Matrix<double, 9, 9>
+IMUPreintegrationHelper::computeFMatrix(double dt) const {
+  Eigen::Matrix<double, 9, 9> F = Eigen::Matrix<double, 9, 9>::Identity();
+  F.block<3, 3>(6, 3) = Eigen::Matrix3d::Identity() * dt;
+  return F;
+}
+
+Eigen::Matrix<double, 5, 5> IMUPreintegrationHelper::computeGammaMatrix(
+    double dt, const Eigen::Vector3d &gravity) const {
+  Eigen::Matrix<double, 5, 5> Gamma = Eigen::Matrix<double, 5, 5>::Identity();
+  Gamma.block<3, 1>(0, 3) = dt * gravity;
+  Gamma.block<3, 1>(0, 4) = 0.5 * dt * dt * gravity;
+  return Gamma;
 }
 
 } // namespace ceres_nav

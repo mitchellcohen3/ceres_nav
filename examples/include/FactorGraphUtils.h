@@ -64,8 +64,8 @@ void addPreintegrationFactor(ceres_nav::FactorGraph &graph,
                              LieDirection &direction,
                              ExtendedPoseRepresentation state_rep,
                              ProblemKeys keys = ProblemKeys()) {
-  double start_stamp = imu_increment.start_stamp;
-  double end_stamp = imu_increment.end_stamp;
+  double start_stamp = imu_increment.startTime();
+  double end_stamp = imu_increment.endTime();
   std::vector<StateID> state_ids = {StateID(keys.nav_state_key, start_stamp),
                                     StateID(keys.bias_state_key, start_stamp),
                                     StateID(keys.nav_state_key, end_stamp),

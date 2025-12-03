@@ -2,7 +2,8 @@
 #include "lie/SE23.h"
 #include "lie/SO3.h"
 #include <Eigen/Dense>
-#include <iostream>
+
+#include <glog/logging.h>
 
 namespace ceres_nav {
 
@@ -175,9 +176,10 @@ Eigen::Matrix<double, 6, 1> SE3::minus(const Eigen::Matrix<double, 4, 4> &Y,
   if (direction == LieDirection::left) {
     return SE3::logMap(Y * SE3::inverse(X));
   } else if (direction == LieDirection::right) {
+    LOG(INFO) << "Calling right minus";
     return SE3::logMap(SE3::inverse(X) * Y);
   } else {
-    std::cerr << "Invalid Lie direction" << std::endl;
+    LOG(ERROR) << "Direction not supported!";
     return Eigen::Matrix<double, 6, 1>::Zero();
   }
 }
